@@ -1,0 +1,32 @@
+id: cpu_100
+title: CPU 100%
+keywords:
+  - cpu
+  - load
+  - hot thread
+  - high load
+  - service slow
+  - response lag
+symptoms:
+  - high CPU
+  - load high
+  - slow response
+  - service slow
+immediate_actions:
+  - step: 1
+    action: "top"
+  - step: 2
+    action: "top -Hp {pid}"
+  - step: 3
+    action: "jstack {pid}"
+decision_tree:
+  - condition: "infinite loop"
+    action: "restart service"
+  - condition: "high GC"
+    action: "analyze heap dump"
+root_cause:
+  - bad code
+  - traffic spike
+long_term_fix:
+  - optimize hot path
+  - add caching

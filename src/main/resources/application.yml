@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: devqrh
+  main:
+    banner-mode: off
+
+server:
+  port: 8080
+
+devqrh:
+  data-path: data
+  matcher-config-path: src/main/resources/matcher/matching-config.yaml
+  cors:
+    allowed-origin-patterns: "*"
+  auto-reload:
+    enabled: true
+    debounce-ms: 500

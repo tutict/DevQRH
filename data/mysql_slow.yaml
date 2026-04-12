@@ -1,0 +1,32 @@
+id: mysql_slow
+title: MySQL Slow Query
+keywords:
+  - mysql
+  - db
+  - slow query
+  - latency
+  - timeout
+  - sql
+symptoms:
+  - db slow
+  - query latency high
+  - service slow
+  - slow response
+immediate_actions:
+  - step: 1
+    action: "show full processlist;"
+  - step: 2
+    action: "show variables like 'slow_query_log';"
+  - step: 3
+    action: "explain analyze {sql}"
+decision_tree:
+  - condition: "full table scan"
+    action: "add or fix index"
+  - condition: "lock wait"
+    action: "find blocking transaction"
+root_cause:
+  - missing index
+  - large result set
+long_term_fix:
+  - add slow SQL review
+  - tune query and schema
