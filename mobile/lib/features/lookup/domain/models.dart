@@ -137,6 +137,42 @@ class LookupResponse {
   }
 }
 
+class AgentNavigationResponse {
+  AgentNavigationResponse({
+    required this.query,
+    required this.bestMatch,
+    required this.candidates,
+    required this.clarifiers,
+  });
+
+  factory AgentNavigationResponse.fromJson(Map<String, dynamic> json) {
+    return AgentNavigationResponse(
+      query: json['query'] as String? ?? '',
+      bestMatch: json['bestMatch'] == null
+          ? null
+          : RankedChecklist.fromJson(
+              json['bestMatch'] as Map<String, dynamic>? ?? const {},
+            ),
+      candidates: _mapList(json['candidates'], RankedChecklist.fromJson),
+      clarifiers: _stringList(json['clarifiers']),
+    );
+  }
+
+  final String query;
+  final RankedChecklist? bestMatch;
+  final List<RankedChecklist> candidates;
+  final List<String> clarifiers;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'query': query,
+      'bestMatch': bestMatch?.toJson(),
+      'candidates': candidates.map((item) => item.toJson()).toList(),
+      'clarifiers': clarifiers,
+    };
+  }
+}
+
 class ContentManifest {
   ContentManifest({
     required this.version,

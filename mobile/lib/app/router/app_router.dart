@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../shell/app_shell.dart';
+import '../../features/lookup/presentation/agent_screen.dart';
+import '../../features/lookup/presentation/catalog_screen.dart';
 import '../../features/lookup/presentation/checklist_detail_screen.dart';
 import '../../features/lookup/presentation/favorites_screen.dart';
 import '../../features/lookup/presentation/home_screen.dart';
@@ -21,6 +23,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/',
                 builder: (context, state) => const HomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/agent',
+                builder: (context, state) => const AgentScreen(),
               ),
             ],
           ),
@@ -60,6 +70,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             titleHint: title,
           );
         },
+      ),
+      GoRoute(
+        path: '/catalog',
+        builder: (context, state) => const CatalogScreen(),
       ),
     ],
   );

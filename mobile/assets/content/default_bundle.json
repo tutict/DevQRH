@@ -1,0 +1,154 @@
+{
+  "manifest": {
+    "version": "20260415",
+    "checklistCount": 4,
+    "generatedAt": 1776124800000
+  },
+  "matchingConfig": {
+    "partialMinLength": 3,
+    "synonymGroups": [
+      ["slow", "latency", "timeout", "lag", "delay", "sluggish"],
+      ["cpu", "load", "hot", "busy", "spike", "thread"],
+      ["memory", "heap", "gc", "oom", "leak"],
+      ["mysql", "db", "database", "sql", "query"],
+      ["service", "api", "app", "endpoint"],
+      ["disk", "io", "iowait", "storage", "bottleneck"]
+    ],
+    "weights": {
+      "exactQueryId": 1.0,
+      "exactIdToken": 1.0,
+      "exactTitleToken": 0.95,
+      "exactKeywordToken": 0.9,
+      "exactSymptomToken": 0.78,
+      "exactContextToken": 0.6,
+      "synonymKeyword": 0.72,
+      "synonymPrimary": 0.62,
+      "synonymAny": 0.5,
+      "partialKeyword": 0.48,
+      "partialPrimary": 0.4,
+      "partialAny": 0.28,
+      "tokenAverage": 0.88,
+      "keywordCoverage": 0.12,
+      "exactTitleBoost": 0.12,
+      "partialTitleBoost": 0.07,
+      "partialIdBoost": 0.07,
+      "phraseBoost": 0.04
+    }
+  },
+  "checklists": [
+    {
+      "id": "cpu_100",
+      "title": "CPU 100%",
+      "keywords": [
+        "cpu",
+        "load",
+        "hot thread",
+        "high load",
+        "service slow",
+        "response lag"
+      ],
+      "symptoms": [
+        "high CPU",
+        "load high",
+        "slow response",
+        "service slow"
+      ],
+      "immediateActions": [
+        { "step": 1, "action": "top" },
+        { "step": 2, "action": "top -Hp {pid}" },
+        { "step": 3, "action": "jstack {pid}" }
+      ],
+      "decisionTree": [
+        { "condition": "infinite loop", "action": "restart service" },
+        { "condition": "high GC", "action": "analyze heap dump" }
+      ],
+      "rootCause": ["bad code", "traffic spike"],
+      "longTermFix": ["optimize hot path", "add caching"]
+    },
+    {
+      "id": "mysql_slow",
+      "title": "MySQL Slow Query",
+      "keywords": ["mysql", "db", "slow query", "latency", "timeout", "sql"],
+      "symptoms": [
+        "db slow",
+        "query latency high",
+        "service slow",
+        "slow response"
+      ],
+      "immediateActions": [
+        { "step": 1, "action": "show full processlist;" },
+        {
+          "step": 2,
+          "action": "show variables like 'slow_query_log';"
+        },
+        { "step": 3, "action": "explain analyze {sql}" }
+      ],
+      "decisionTree": [
+        { "condition": "full table scan", "action": "add or fix index" },
+        { "condition": "lock wait", "action": "find blocking transaction" }
+      ],
+      "rootCause": ["missing index", "large result set"],
+      "longTermFix": ["add slow SQL review", "tune query and schema"]
+    },
+    {
+      "id": "memory_leak",
+      "title": "Memory Leak",
+      "keywords": ["memory", "heap", "gc", "oom", "leak"],
+      "symptoms": [
+        "heap keeps growing",
+        "frequent GC",
+        "OOM risk",
+        "service slow"
+      ],
+      "immediateActions": [
+        { "step": 1, "action": "jstat -gcutil {pid} 1000" },
+        { "step": 2, "action": "jmap -histo:live {pid}" },
+        { "step": 3, "action": "capture heap dump" }
+      ],
+      "decisionTree": [
+        {
+          "condition": "old gen rising",
+          "action": "analyze retained objects"
+        },
+        { "condition": "metaspace high", "action": "check classloader leak" }
+      ],
+      "rootCause": ["object retention", "cache not evicted"],
+      "longTermFix": ["add leak tests", "cap cache size"]
+    },
+    {
+      "id": "io_bottleneck",
+      "title": "IO Bottleneck",
+      "keywords": [
+        "io",
+        "disk",
+        "iowait",
+        "bottleneck",
+        "service lag",
+        "latency"
+      ],
+      "symptoms": [
+        "disk busy",
+        "io wait high",
+        "service lag",
+        "response delay"
+      ],
+      "immediateActions": [
+        { "step": 1, "action": "iostat -xz 1 3" },
+        { "step": 2, "action": "pidstat -d 1" },
+        { "step": 3, "action": "lsof -p {pid}" }
+      ],
+      "decisionTree": [
+        {
+          "condition": "device util near 100%",
+          "action": "move load or throttle writes"
+        },
+        {
+          "condition": "single process saturating disk",
+          "action": "inspect hot files and write path"
+        }
+      ],
+      "rootCause": ["disk contention", "large sync writes"],
+      "longTermFix": ["isolate noisy workload", "optimize write pattern"]
+    }
+  ]
+}

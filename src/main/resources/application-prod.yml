@@ -1,0 +1,11 @@
+devqrh:
+  cors:
+    allowed-origin-patterns: ${DEVQRH_CORS_ALLOWED_ORIGIN_PATTERNS:}
+  auto-reload:
+    enabled: false
+  admin:
+    reload:
+      require-token: true
+      token: ${DEVQRH_ADMIN_RELOAD_TOKEN:}
+  health:
+    include-source-locations: false
