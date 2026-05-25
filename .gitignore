@@ -1,3 +1,5 @@
-target/
 .idea/
 *.iml
+mobile/build/
+sidecar/rag/rag_sidecar
+sidecar/rag/rag_sidecar.exe

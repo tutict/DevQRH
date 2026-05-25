@@ -2,8 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
-import '../../../core/config/app_config.dart';
-import '../../../core/network/devqrh_api_client.dart';
+import '../../../core/sidecar/rag_sidecar_client.dart';
 import '../../../core/storage/local_store.dart';
 import '../domain/models.dart';
 import 'offline_lookup_matcher.dart';
@@ -12,22 +11,32 @@ class LookupRepository {
   LookupRepository(
     this._localStore, {
     AssetBundle? assetBundle,
-    DevQrhApiClient? apiClient,
-  })
-    : _assetBundle = assetBundle ?? rootBundle,
-      _apiClient =
-          apiClient ?? DevQrhApiClient(baseUrl: AppConfig.apiBaseUrl),
-      _offlineLookupMatcher = OfflineLookupMatcher();
+    RagSidecarClient? sidecarClient,
+  }) : _assetBundle = assetBundle ?? rootBundle,
+       _sidecarClient = sidecarClient ?? RagSidecarClient(),
+       _offlineLookupMatcher = OfflineLookupMatcher();
 
   static const _defaultBundleAsset = 'assets/content/default_bundle.json';
 
   final LocalStore _localStore;
   final AssetBundle _assetBundle;
-  final DevQrhApiClient _apiClient;
+  final RagSidecarClient _sidecarClient;
   final OfflineLookupMatcher _offlineLookupMatcher;
+
+  void dispose() {
+    _sidecarClient.dispose();
+  }
 
   Future<LookupResponse> search(String query) async {
     final bootstrap = await loadPreferredBootstrap();
+    final sidecarResult = await _sidecarClient.search(
+      query,
+      bootstrap: bootstrap,
+    );
+    if (sidecarResult != null) {
+      return sidecarResult;
+    }
+
     return searchCached(
       query,
       checklists: bootstrap.checklists,
@@ -184,15 +193,65 @@ class LookupRepository {
       );
     }
 
-    try {
-      final json = await _apiClient.getJson(
-        '/api/agent/navigate',
-        queryParameters: {'q': query},
+    final bootstrap = await loadPreferredBootstrap();
+    final ragAnswer = await answerQuestion(query, bootstrap: bootstrap);
+    return _navigationFromCandidates(
+      query,
+      ragAnswer.candidates,
+    ).copyWith(ragAnswer: ragAnswer);
+  }
+
+  Future<RagAnswerResponse> answerQuestion(
+    String rawQuery, {
+    ContentBootstrap? bootstrap,
+  }) async {
+    final query = rawQuery.trim();
+    final resolvedBootstrap = bootstrap ?? await loadPreferredBootstrap();
+    if (query.isEmpty) {
+      return RagAnswerResponse(
+        query: '',
+        answer: '',
+        citations: const [],
+        candidates: const [],
       );
-      return AgentNavigationResponse.fromJson(json);
-    } catch (_) {
-      return navigateAgentCachedBootstrap(query);
     }
+
+    final sidecarAnswer = await _sidecarClient.answerQuestion(
+      query,
+      bootstrap: resolvedBootstrap,
+    );
+    if (sidecarAnswer != null) {
+      return sidecarAnswer;
+    }
+
+    return answerQuestionCached(
+      query,
+      checklists: resolvedBootstrap.checklists,
+      matchingConfig: resolvedBootstrap.matchingConfig,
+    );
+  }
+
+  RagAnswerResponse answerQuestionCached(
+    String rawQuery, {
+    required List<Checklist> checklists,
+    MatchingConfig? matchingConfig,
+  }) {
+    final query = rawQuery.trim();
+    if (query.isEmpty) {
+      return RagAnswerResponse(
+        query: '',
+        answer: '',
+        citations: const [],
+        candidates: const [],
+      );
+    }
+
+    final lookup = searchCached(
+      query,
+      checklists: checklists,
+      matchingConfig: matchingConfig,
+    );
+    return _buildRagAnswer(query, lookup.candidates);
   }
 
   Future<AgentNavigationResponse> navigateAgentCachedBootstrap(
@@ -227,12 +286,20 @@ class LookupRepository {
       checklists: checklists,
       matchingConfig: matchingConfig,
     );
-    final bestMatch = lookup.candidates.isEmpty ? null : lookup.candidates.first;
+    return _navigationFromCandidates(query, lookup.candidates);
+  }
+
+  AgentNavigationResponse _navigationFromCandidates(
+    String query,
+    List<RankedChecklist> candidates,
+  ) {
+    final bestMatch = candidates.isEmpty ? null : candidates.first;
     final clarifiers = <String>[];
 
     void addClarifier(String value) {
       final normalized = value.trim();
-      if (normalized.isEmpty || normalized.toLowerCase() == query.toLowerCase()) {
+      if (normalized.isEmpty ||
+          normalized.toLowerCase() == query.toLowerCase()) {
         return;
       }
       final exists = clarifiers.any(
@@ -243,7 +310,7 @@ class LookupRepository {
       }
     }
 
-    for (final candidate in lookup.candidates) {
+    for (final candidate in candidates) {
       for (final symptom in candidate.checklist.symptoms) {
         addClarifier(symptom);
         if (clarifiers.length >= 3) {
@@ -256,10 +323,77 @@ class LookupRepository {
     }
 
     return AgentNavigationResponse(
-      query: lookup.query,
+      query: query,
       bestMatch: bestMatch,
-      candidates: lookup.candidates,
+      candidates: candidates,
       clarifiers: clarifiers,
+    );
+  }
+
+  RagAnswerResponse _buildRagAnswer(
+    String query,
+    List<RankedChecklist> candidates,
+  ) {
+    final citations = candidates
+        .map(
+          (item) => RagCitation(
+            id: item.checklist.id,
+            title: item.checklist.title,
+            score: item.score,
+          ),
+        )
+        .toList();
+
+    if (candidates.isEmpty) {
+      return RagAnswerResponse(
+        query: query,
+        answer:
+            'No matching runbook was found in the local handbook. Try adding a more specific symptom, component, or error signal.',
+        citations: citations,
+        candidates: candidates,
+      );
+    }
+
+    final best = candidates.first.checklist;
+    final buffer = StringBuffer()
+      ..writeln('Start with "${best.title}" because it is the strongest match.')
+      ..writeln();
+
+    if (best.symptoms.isNotEmpty) {
+      buffer.writeln('Matched signals: ${best.symptoms.take(3).join(', ')}.');
+    }
+    if (best.immediateActions.isNotEmpty) {
+      buffer.writeln('Immediate checks:');
+      for (final step in best.immediateActions.take(3)) {
+        buffer.writeln('${step.step}. ${step.action}');
+      }
+    }
+    if (best.decisionTree.isNotEmpty) {
+      buffer.writeln('Decision points:');
+      for (final branch in best.decisionTree.take(2)) {
+        buffer.writeln('- If ${branch.condition}, ${branch.action}.');
+      }
+    }
+    if (best.rootCause.isNotEmpty) {
+      buffer.writeln('Likely causes: ${best.rootCause.take(3).join(', ')}.');
+    }
+    if (best.longTermFix.isNotEmpty) {
+      buffer.writeln(
+        'Long-term fixes: ${best.longTermFix.take(3).join(', ')}.',
+      );
+    }
+    final alternatives = candidates.skip(1).take(2).toList();
+    if (alternatives.isNotEmpty) {
+      buffer.writeln(
+        'Also compare: ${alternatives.map((item) => item.checklist.title).join(', ')}.',
+      );
+    }
+
+    return RagAnswerResponse(
+      query: query,
+      answer: buffer.toString().trim(),
+      citations: citations,
+      candidates: candidates,
     );
   }
 

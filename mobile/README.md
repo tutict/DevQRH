@@ -1,10 +1,12 @@
 # DevQRH Mobile
 
-Standalone Flutter handbook app.
+Standalone Flutter handbook app with an optional local Go RAG sidecar on
+desktop.
 
 ## Current mode
 
-- No backend required
+- No remote backend required
+- Desktop builds can use `rag_sidecar.exe` for local retrieval and RAG answers
 - Built-in handbook bundle ships with the app
 - Users can import a local handbook package from Settings
 - Imported content replaces the current local handbook cache
@@ -70,13 +72,32 @@ Windows release:
 flutter build windows
 ```
 
+Windows release with the local Go sidecar:
+
+```powershell
+..\scripts\build-windows-with-sidecar.ps1
+```
+
 Output:
 
 ```text
 build/windows/x64/runner/Release/
 ```
 
-Ship the whole `Release/` folder, not only `DevQRH.exe`.
+Ship the whole `Release/` folder, not only `DevQRH.exe`. With the sidecar build,
+that folder also contains `rag_sidecar.exe`.
+
+When `rag_sidecar.exe` is present, the Agent tab shows a local RAG answer with
+source citations before the recommended runbook. If the sidecar is missing, the
+app falls back to the built-in Flutter matcher.
+
+Optional LLM mode is configured through the sidecar environment:
+
+```powershell
+$env:DEVQRH_LLM_API_KEY="..."
+$env:DEVQRH_LLM_MODEL="..."
+$env:DEVQRH_LLM_BASE_URL="https://api.openai.com/v1" # optional
+```
 
 Android release:
 

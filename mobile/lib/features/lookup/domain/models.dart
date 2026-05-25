@@ -143,6 +143,7 @@ class AgentNavigationResponse {
     required this.bestMatch,
     required this.candidates,
     required this.clarifiers,
+    this.ragAnswer,
   });
 
   factory AgentNavigationResponse.fromJson(Map<String, dynamic> json) {
@@ -155,6 +156,11 @@ class AgentNavigationResponse {
             ),
       candidates: _mapList(json['candidates'], RankedChecklist.fromJson),
       clarifiers: _stringList(json['clarifiers']),
+      ragAnswer: json['ragAnswer'] == null
+          ? null
+          : RagAnswerResponse.fromJson(
+              json['ragAnswer'] as Map<String, dynamic>? ?? const {},
+            ),
     );
   }
 
@@ -162,6 +168,23 @@ class AgentNavigationResponse {
   final RankedChecklist? bestMatch;
   final List<RankedChecklist> candidates;
   final List<String> clarifiers;
+  final RagAnswerResponse? ragAnswer;
+
+  AgentNavigationResponse copyWith({
+    String? query,
+    RankedChecklist? bestMatch,
+    List<RankedChecklist>? candidates,
+    List<String>? clarifiers,
+    RagAnswerResponse? ragAnswer,
+  }) {
+    return AgentNavigationResponse(
+      query: query ?? this.query,
+      bestMatch: bestMatch ?? this.bestMatch,
+      candidates: candidates ?? this.candidates,
+      clarifiers: clarifiers ?? this.clarifiers,
+      ragAnswer: ragAnswer ?? this.ragAnswer,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -169,6 +192,75 @@ class AgentNavigationResponse {
       'bestMatch': bestMatch?.toJson(),
       'candidates': candidates.map((item) => item.toJson()).toList(),
       'clarifiers': clarifiers,
+      'ragAnswer': ragAnswer?.toJson(),
+    };
+  }
+}
+
+class RagCitation {
+  RagCitation({required this.id, required this.title, required this.score});
+
+  factory RagCitation.fromJson(Map<String, dynamic> json) {
+    return RagCitation(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      score: (json['score'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  final String id;
+  final String title;
+  final double score;
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'title': title, 'score': score};
+  }
+}
+
+class RagAnswerResponse {
+  RagAnswerResponse({
+    required this.query,
+    required this.answer,
+    required this.citations,
+    required this.candidates,
+    this.mode = 'local',
+    this.provider,
+    this.model,
+    this.notice,
+  });
+
+  factory RagAnswerResponse.fromJson(Map<String, dynamic> json) {
+    return RagAnswerResponse(
+      query: json['query'] as String? ?? '',
+      answer: json['answer'] as String? ?? '',
+      citations: _mapList(json['citations'], RagCitation.fromJson),
+      candidates: _mapList(json['candidates'], RankedChecklist.fromJson),
+      mode: json['mode'] as String? ?? 'local',
+      provider: json['provider'] as String?,
+      model: json['model'] as String?,
+      notice: json['notice'] as String?,
+    );
+  }
+
+  final String query;
+  final String answer;
+  final List<RagCitation> citations;
+  final List<RankedChecklist> candidates;
+  final String mode;
+  final String? provider;
+  final String? model;
+  final String? notice;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'query': query,
+      'answer': answer,
+      'citations': citations.map((item) => item.toJson()).toList(),
+      'candidates': candidates.map((item) => item.toJson()).toList(),
+      'mode': mode,
+      'provider': provider,
+      'model': model,
+      'notice': notice,
     };
   }
 }

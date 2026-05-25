@@ -46,10 +46,12 @@ void main() {
     });
 
     await tester.pumpWidget(const ProviderScope(child: DevQrhApp()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     await tester.tap(find.text('Catalog'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     final textField = tester.widget<TextField>(find.byType(TextField).first);
     expect(textField.controller?.text, 'mysql');
@@ -318,6 +320,35 @@ void main() {
     expect(response.candidates, isNotEmpty);
     expect(response.clarifiers, isNotEmpty);
     expect(response.clarifiers.first, startsWith('check: '));
+  });
+
+  test('builds local RAG answer from cached runbooks', () {
+    final repository = LookupRepository(FakeLocalStore());
+    final answer = repository.answerQuestionCached(
+      'cpu spike',
+      checklists: [
+        Checklist(
+          id: 'cpu_100',
+          title: 'CPU 100%',
+          keywords: const ['cpu', 'thread'],
+          symptoms: const ['high cpu', 'service lag'],
+          immediateActions: [
+            ChecklistStep(step: 1, action: 'check top'),
+            ChecklistStep(step: 2, action: 'inspect hot threads'),
+          ],
+          decisionTree: [
+            ChecklistBranch(condition: 'high GC', action: 'analyze heap dump'),
+          ],
+          rootCause: const ['busy threads'],
+          longTermFix: const ['optimize workload'],
+        ),
+      ],
+    );
+
+    expect(answer.answer, contains('CPU 100%'));
+    expect(answer.answer, contains('Immediate checks'));
+    expect(answer.citations.single.id, 'cpu_100');
+    expect(answer.candidates, isNotEmpty);
   });
 
   test('builds saved runbook subtitle with keyword and symptom fallback', () {

@@ -5,7 +5,9 @@ import '../data/lookup_repository.dart';
 import '../domain/models.dart';
 
 final lookupRepositoryProvider = Provider<LookupRepository>((ref) {
-  return LookupRepository(ref.watch(localStoreProvider));
+  final repository = LookupRepository(ref.watch(localStoreProvider));
+  ref.onDispose(repository.dispose);
+  return repository;
 });
 
 final localStoreProvider = Provider<LocalStore>((ref) => LocalStore());
@@ -32,10 +34,13 @@ final lookupControllerProvider =
       return LookupController(ref.watch(lookupRepositoryProvider));
     });
 
-final agentControllerProvider = StateNotifierProvider<AgentController,
-    AsyncValue<AgentNavigationResponse?>>((ref) {
-  return AgentController(ref.watch(lookupRepositoryProvider));
-});
+final agentControllerProvider =
+    StateNotifierProvider<
+      AgentController,
+      AsyncValue<AgentNavigationResponse?>
+    >((ref) {
+      return AgentController(ref.watch(lookupRepositoryProvider));
+    });
 
 final contentSyncProvider =
     StateNotifierProvider<ContentSyncController, ContentSyncState>((ref) {
@@ -207,22 +212,8 @@ class LookupController extends StateNotifier<AsyncValue<LookupResponse?>> {
       return;
     }
 
-    final cached = await _repository.searchCachedBootstrap(query);
-    final hasCached = cached.candidates.isNotEmpty;
-    if (hasCached) {
-      state = AsyncData(cached);
-    } else {
-      state = const AsyncLoading();
-    }
-
-    try {
-      final remote = await _repository.search(query);
-      state = AsyncData(remote);
-    } catch (error, stackTrace) {
-      if (!hasCached) {
-        state = AsyncError(error, stackTrace);
-      }
-    }
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => _repository.search(query));
   }
 }
 

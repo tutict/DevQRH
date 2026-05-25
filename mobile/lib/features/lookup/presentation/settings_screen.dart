@@ -81,10 +81,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 14),
           _SettingsCard(
             title: l10n.displayLanguage,
-            lines: [
-              l10n.language,
-              l10n.languageModeLabel(localeMode),
-            ],
+            lines: [l10n.language, l10n.languageModeLabel(localeMode)],
             actions: [
               DropdownButtonFormField<AppLocaleMode>(
                 initialValue: localeMode,
@@ -132,7 +129,7 @@ class SettingsScreen extends ConsumerWidget {
               l10n.fields,
               'manifest, matchingConfig, checklists',
               l10n.tip,
-              l10n.backendBootstrapReuseTip,
+              l10n.standalonePackageTip,
             ],
           ),
           const SizedBox(height: 14),
@@ -167,9 +164,9 @@ class SettingsScreen extends ConsumerWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.selectedPackageEmpty)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.selectedPackageEmpty)));
       return;
     }
 
@@ -217,10 +214,7 @@ String buildSettingsOverviewForTest({
   );
 }
 
-String _shortVersion(
-  ContentManifest? manifest, {
-  AppLocalizations? l10n,
-}) {
+String _shortVersion(ContentManifest? manifest, {AppLocalizations? l10n}) {
   if (manifest == null) {
     return (l10n ?? AppLocalizations.english).notLoadedLabel;
   }
@@ -231,10 +225,7 @@ String _shortVersion(
   );
 }
 
-String _contentSourceLabel(
-  ContentSource source, {
-  AppLocalizations? l10n,
-}) {
+String _contentSourceLabel(ContentSource source, {AppLocalizations? l10n}) {
   final strings = l10n ?? AppLocalizations.english;
   return switch (source) {
     ContentSource.bundled => strings.bundledShort,

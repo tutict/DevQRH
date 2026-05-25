@@ -52,10 +52,16 @@ class AppLocalizations {
       'service lag after deploy / timeout query / cpu and db spike';
   String get agentRun => isChinese ? '开始导航' : 'Run agent';
   String get agentQuickPrompts => isChinese ? '示例问题' : 'Prompt ideas';
-  String get agentWaitingTitle => isChinese ? '等待问题描述' : 'Waiting for a problem';
+  String get agentWaitingTitle =>
+      isChinese ? '等待问题描述' : 'Waiting for a problem';
   String get agentWaitingDescription => isChinese
       ? '输入一段更复杂的故障描述，Agent 会收敛成推荐手册和排查建议。'
       : 'Enter a more complex incident description and Agent will narrow it into a recommended runbook and next checks.';
+  String get ragAnswerTitle => isChinese ? 'RAG 答案' : 'RAG answer';
+  String get ragSources => isChinese ? '引用来源' : 'Sources';
+  String get ragLocalMode => isChinese ? '本地答案' : 'Local answer';
+  String get ragLlmMode => isChinese ? 'LLM 答案' : 'LLM answer';
+  String get ragLocalFallbackMode => isChinese ? '本地回退' : 'Local fallback';
   String get agentBestMatch => isChinese ? '推荐 runbook' : 'Recommended runbook';
   String get agentClarifiers => isChinese ? '下一步排查' : 'Next checks';
   String get agentAlternatives => isChinese ? '备选路径' : 'Alternative paths';
@@ -67,17 +73,15 @@ class AppLocalizations {
       : 'Agent did not find a strong runbook yet. Try adding more specific symptoms or impact.';
   String get agentOpenRunbook => isChinese ? '打开手册' : 'Open runbook';
   String get agentScore => isChinese ? '匹配分' : 'Score';
-  String get searchPlaceholder =>
-      'service lag / CPU 100% / timeout query';
+  String get searchPlaceholder => 'service lag / CPU 100% / timeout query';
   String get recentSearchesTitle => isChinese ? '最近搜索' : 'Recent searches';
   String get suggestionsTitle => isChinese ? '建议' : 'Suggestions';
   String get clear => isChinese ? '清除' : 'Clear';
   String get recentSearchesEmpty => isChinese
       ? '完成第一次搜索后，这里会显示最近搜索。'
       : 'Recent searches appear after your first lookup.';
-  String get suggestionsEmpty => isChinese
-      ? '当前输入还没有建议。'
-      : 'No suggestion yet for this input.';
+  String get suggestionsEmpty =>
+      isChinese ? '当前输入还没有建议。' : 'No suggestion yet for this input.';
   String get quickSearches => isChinese ? '快捷搜索' : 'Quick searches';
   String get contentStatus => isChinese ? '内容状态' : 'Content status';
   String get manageLibrary => isChinese ? '管理资料库' : 'Manage library';
@@ -87,8 +91,10 @@ class AppLocalizations {
       ? '输入一个症状后即可对 runbook 进行排序。'
       : 'Enter one symptom to rank the top runbooks.';
   String get searchFailed => isChinese ? '搜索失败' : 'Search failed';
-  String get agentFailed => isChinese ? 'Agent 导航失败' : 'Agent navigation failed';
-  String get firstActionCopied => isChinese ? '已复制第一步操作' : 'First action copied';
+  String get agentFailed =>
+      isChinese ? 'Agent 导航失败' : 'Agent navigation failed';
+  String get firstActionCopied =>
+      isChinese ? '已复制第一步操作' : 'First action copied';
   String matchSignalsFor(String query) => isChinese
       ? '“${query.trim()}” 的匹配信号'
       : 'Match signals for "${query.trim()}"';
@@ -99,8 +105,7 @@ class AppLocalizations {
       isChinese ? '$count 个 runbook' : '$count runbooks';
   String favoritesCount(int count) =>
       isChinese ? '$count 个收藏' : '$count favorites';
-  String recentCount(int count) =>
-      isChinese ? '$count 条最近记录' : '$count recent';
+  String recentCount(int count) => isChinese ? '$count 条最近记录' : '$count recent';
   String searchesCount(int count) =>
       isChinese ? '$count 条搜索' : '$count searches';
   String get importedContentFallbackNotice => isChinese
@@ -110,9 +115,8 @@ class AppLocalizations {
   String get bundledLibrary => isChinese ? '内置资料库' : 'bundled library';
   String get importedPackage => isChinese ? '导入包' : 'imported package';
   String get noLibrary => isChinese ? '无资料库' : 'no library';
-  String versionFromSource(String version, String source) => isChinese
-      ? '版本 $version，来源：$source。'
-      : 'Version $version from $source.';
+  String versionFromSource(String version, String source) =>
+      isChinese ? '版本 $version，来源：$source。' : 'Version $version from $source.';
   String versionFromSourceUpdated(
     String version,
     String source,
@@ -123,8 +127,10 @@ class AppLocalizations {
   String get copyTools => isChinese ? '复制工具' : 'Copy tools';
   String get copySummary => isChinese ? '复制摘要' : 'Copy summary';
   String get copySteps => isChinese ? '复制步骤' : 'Copy steps';
-  String get runbookSummaryCopied => isChinese ? '已复制手册摘要' : 'Runbook summary copied';
-  String get immediateStepsCopied => isChinese ? '已复制立即执行步骤' : 'Immediate steps copied';
+  String get runbookSummaryCopied =>
+      isChinese ? '已复制手册摘要' : 'Runbook summary copied';
+  String get immediateStepsCopied =>
+      isChinese ? '已复制立即执行步骤' : 'Immediate steps copied';
   String get immediateActions => isChinese ? '立即动作' : 'Immediate Actions';
   String get decisionTree => isChinese ? '决策树' : 'Decision Tree';
   String get symptoms => isChinese ? '症状' : 'Symptoms';
@@ -146,40 +152,38 @@ class AppLocalizations {
   String get source => isChinese ? '来源' : 'Source';
   String get updated => isChinese ? '更新时间' : 'Updated';
   String get importPackage => isChinese ? '导入包' : 'Import package';
-  String get useBuiltInLibrary => isChinese ? '使用内置资料库' : 'Use built-in library';
+  String get useBuiltInLibrary =>
+      isChinese ? '使用内置资料库' : 'Use built-in library';
   String get lastIssue => isChinese ? '最近问题' : 'Last issue';
   String get issue => isChinese ? '问题' : 'Issue';
   String get fallback => isChinese ? '回退策略' : 'Fallback';
-  String get currentHandbookStaysAvailable => isChinese
-      ? '当前手册仍然可用。'
-      : 'Current handbook stays available.';
-  String get noHandbookLoaded => isChinese ? '当前没有加载任何手册。' : 'No handbook is loaded.';
+  String get currentHandbookStaysAvailable =>
+      isChinese ? '当前手册仍然可用。' : 'Current handbook stays available.';
+  String get noHandbookLoaded =>
+      isChinese ? '当前没有加载任何手册。' : 'No handbook is loaded.';
   String get packageFormat => isChinese ? '包格式' : 'Package format';
   String get accepted => isChinese ? '接受格式' : 'Accepted';
   String get jsonPackage => isChinese ? 'JSON 包' : 'JSON package';
   String get fields => isChinese ? '字段' : 'Fields';
   String get tip => isChinese ? '提示' : 'Tip';
-  String get backendBootstrapReuseTip => isChinese
-      ? '可以直接复用后端 bootstrap JSON 结构。'
-      : 'You can reuse the backend bootstrap JSON structure directly.';
+  String get standalonePackageTip => isChinese
+      ? '可导入包含 manifest、matchingConfig 和 checklists 的 JSON 包。'
+      : 'Import a JSON package with manifest, matchingConfig, and checklists.';
   String get appScope => isChinese ? '应用范围' : 'App scope';
   String get purpose => isChinese ? '用途' : 'Purpose';
   String get runbooksLabel => isChinese ? '手册数量' : 'Runbooks';
   String get notLoadedLabel => isChinese ? '未加载' : 'Not loaded';
   String get builtInLabel => isChinese ? '内置' : 'Built-in';
-  String get singleAppIncidentHandbook => isChinese
-      ? '单应用故障处置手册'
-      : 'Single-app incident handbook';
+  String get singleAppIncidentHandbook =>
+      isChinese ? '单应用故障处置手册' : 'Single-app incident handbook';
   String get delivery => isChinese ? '交付端' : 'Delivery';
-  String get selectedPackageEmpty => isChinese
-      ? '所选包为空。'
-      : 'Selected package is empty.';
+  String get selectedPackageEmpty =>
+      isChinese ? '所选包为空。' : 'Selected package is empty.';
   String importedPackageMessage(String fileName) =>
       isChinese ? '已导入 $fileName' : 'Imported $fileName';
   String get importFailed => isChinese ? '导入失败' : 'Import failed';
-  String get builtInLibraryRestored => isChinese
-      ? '已恢复内置资料库'
-      : 'Built-in library restored';
+  String get builtInLibraryRestored =>
+      isChinese ? '已恢复内置资料库' : 'Built-in library restored';
   String get displayLanguage => isChinese ? '显示语言' : 'Display language';
   String get language => isChinese ? '语言' : 'Language';
   String get followSystem => isChinese ? '跟随系统' : 'Follow system';
@@ -198,13 +202,12 @@ class AppLocalizations {
   String get saved => isChinese ? '已保存' : 'saved';
   String get viewed => isChinese ? '已查看' : 'viewed';
   String get noFavorites => isChinese ? '暂无收藏' : 'No favorites';
-  String get bookmarkRunbooksHint => isChinese
-      ? '收藏 runbook 以便快速访问。'
-      : 'Bookmark runbooks for quick access.';
-  String get loadingRunbook => isChinese ? '正在加载 runbook...' : 'Loading runbook...';
-  String get runbookNotCachedYet => isChinese
-      ? '该 runbook 内容尚未缓存。'
-      : 'Runbook content is not cached yet.';
+  String get bookmarkRunbooksHint =>
+      isChinese ? '收藏 runbook 以便快速访问。' : 'Bookmark runbooks for quick access.';
+  String get loadingRunbook =>
+      isChinese ? '正在加载 runbook...' : 'Loading runbook...';
+  String get runbookNotCachedYet =>
+      isChinese ? '该 runbook 内容尚未缓存。' : 'Runbook content is not cached yet.';
   String collectionSummary(
     int count,
     int totalCount,
@@ -221,7 +224,8 @@ class AppLocalizations {
 
   String get recentTitle => isChinese ? '最近' : 'Recent';
   String get recentActivity => isChinese ? '最近活动' : 'Recent activity';
-  String get noRecentRunbooks => isChinese ? '暂无最近查看的 runbook' : 'No recent runbooks';
+  String get noRecentRunbooks =>
+      isChinese ? '暂无最近查看的 runbook' : 'No recent runbooks';
   String get openRunbookHint => isChinese
       ? '打开一个 runbook 后会显示在这里。'
       : 'Open a runbook and it appears here.';
@@ -241,17 +245,18 @@ class AppLocalizations {
   String get recentTags => isChinese ? '最近标签' : 'Recent tags';
   String get loading => isChinese ? '加载中...' : 'Loading...';
   String get sort => isChinese ? '排序' : 'Sort';
-  String get noHandbookLoadedTitle => isChinese ? '未加载手册' : 'No handbook loaded';
+  String get noHandbookLoadedTitle =>
+      isChinese ? '未加载手册' : 'No handbook loaded';
   String get noHandbookLoadedDescription => isChinese
       ? '请在设置中恢复内置资料库，或导入一个手册包。'
       : 'Restore the built-in library or import a handbook package from Settings.';
   String get openSettingsForImportIssue => isChinese
       ? '请打开设置，查看最近一次导入问题。'
       : 'Open Settings and review the last import issue.';
-  String get noMatchingRunbooks => isChinese ? '没有匹配的 runbook' : 'No matching runbooks';
-  String get noRunbookContentAvailable => isChinese
-      ? '当前没有可用的 runbook 内容。'
-      : 'No runbook content is available.';
+  String get noMatchingRunbooks =>
+      isChinese ? '没有匹配的 runbook' : 'No matching runbooks';
+  String get noRunbookContentAvailable =>
+      isChinese ? '当前没有可用的 runbook 内容。' : 'No runbook content is available.';
   String get broaderFilterHint => isChinese
       ? '试试更宽泛的关键词、其他标签，或者清空当前筛选。'
       : 'Try a broader keyword, another tag, or clear the current filter.';
@@ -297,9 +302,8 @@ class AppLocalizations {
       isChinese ? '上下文 $token' : 'context $token';
   String matchHintSynonym(String token, String synonym) =>
       isChinese ? '同义词 $token->$synonym' : 'synonym $token->$synonym';
-  String matchHintSymptomSynonym(String token, String synonym) => isChinese
-      ? '症状同义词 $token->$synonym'
-      : 'symptom synonym $token->$synonym';
+  String matchHintSymptomSynonym(String token, String synonym) =>
+      isChinese ? '症状同义词 $token->$synonym' : 'symptom synonym $token->$synonym';
   String matchHintBroadOverlap() =>
       isChinese ? '文本存在宽泛重叠' : 'broad text overlap';
   String previewSymptoms(String value) =>
@@ -312,7 +316,8 @@ class AppLocalizations {
     if (!isChinese) {
       return message;
     }
-    if (message == 'Imported package could not be loaded. Using built-in library.') {
+    if (message ==
+        'Imported package could not be loaded. Using built-in library.') {
       return '导入包无法加载，已回退到内置资料库。';
     }
     if (message == 'Import failed') {
@@ -339,9 +344,6 @@ class AppLocalizations {
     }
     if (message.startsWith('Checklist not found: ')) {
       return '未找到 checklist：${message.substring('Checklist not found: '.length)}';
-    }
-    if (message.startsWith('Request failed: ')) {
-      return '请求失败：${message.substring('Request failed: '.length)}';
     }
     return message;
   }

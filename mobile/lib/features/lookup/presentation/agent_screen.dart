@@ -95,7 +95,8 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                   ),
                   _PromptChip(
                     label: 'timeout query and memory growth',
-                    onPressed: () => _runAgent('timeout query and memory growth'),
+                    onPressed: () =>
+                        _runAgent('timeout query and memory growth'),
                   ),
                 ],
               ),
@@ -150,12 +151,20 @@ class _AgentResultPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final bestMatch = response.bestMatch;
+    final ragAnswer = response.ragAnswer;
     final alternatives = response.candidates
         .where((item) => item.checklist.id != bestMatch?.checklist.id)
         .toList();
 
     return Column(
       children: [
+        if (ragAnswer != null && ragAnswer.answer.trim().isNotEmpty) ...[
+          SectionCard(
+            title: l10n.ragAnswerTitle,
+            child: _RagAnswerCard(answer: ragAnswer),
+          ),
+          const SizedBox(height: 18),
+        ],
         if (bestMatch != null) ...[
           SectionCard(
             title: l10n.agentBestMatch,
@@ -175,9 +184,8 @@ class _AgentResultPanel extends StatelessWidget {
               : Column(
                   children: response.clarifiers
                       .map(
-                        (item) => _ClarifierLine(
-                          value: l10n.localizeClarifier(item),
-                        ),
+                        (item) =>
+                            _ClarifierLine(value: l10n.localizeClarifier(item)),
                       )
                       .toList(),
                 ),
@@ -203,6 +211,70 @@ class _AgentResultPanel extends StatelessWidget {
   }
 }
 
+class _RagAnswerCard extends StatelessWidget {
+  const _RagAnswerCard({required this.answer});
+
+  final RagAnswerResponse answer;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            InfoPill(label: _ragModeLabel(answer, l10n)),
+            if (answer.model != null && answer.model!.trim().isNotEmpty)
+              InfoPill(label: answer.model!),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (answer.notice != null && answer.notice!.trim().isNotEmpty) ...[
+          Text(
+            answer.notice!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF6A6058),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Text(answer.answer, style: theme.textTheme.bodyMedium),
+        if (answer.citations.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text(l10n.ragSources, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: answer.citations
+                .take(3)
+                .map(
+                  (citation) => InfoPill(
+                    label:
+                        '${citation.title} ${citation.score.toStringAsFixed(2)}',
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _ragModeLabel(RagAnswerResponse answer, AppLocalizations l10n) {
+    return switch (answer.mode) {
+      'llm' => l10n.ragLlmMode,
+      'local_fallback' => l10n.ragLocalFallbackMode,
+      _ => l10n.ragLocalMode,
+    };
+  }
+}
+
 class _AgentBestMatchCard extends StatelessWidget {
   const _AgentBestMatchCard({required this.item});
 
@@ -219,13 +291,16 @@ class _AgentBestMatchCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(item.checklist.title, style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            item.checklist.title,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 6),
           Text(
             item.checklist.symptoms.take(2).join(' / '),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF6A6058),
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF6A6058)),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -233,8 +308,7 @@ class _AgentBestMatchCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               InfoPill(
-                label:
-                    '${l10n.agentScore} ${item.score.toStringAsFixed(2)}',
+                label: '${l10n.agentScore} ${item.score.toStringAsFixed(2)}',
               ),
               ...item.checklist.keywords
                   .take(3)
@@ -281,9 +355,9 @@ class _AgentAlternativeCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               l10n.agentScore,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF6A6058),
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: const Color(0xFF6A6058)),
             ),
           ],
         ),
