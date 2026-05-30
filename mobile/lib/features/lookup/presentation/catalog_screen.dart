@@ -183,9 +183,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: InputDecoration(
-              hintText: l10n.saveViewDialogHint,
-            ),
+            decoration: InputDecoration(hintText: l10n.saveViewDialogHint),
           ),
           actions: [
             TextButton(
@@ -228,8 +226,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.catalog)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      body: PageFrame(
+        safeTop: false,
         children: [
           SectionCard(
             title: l10n.findRunbooks,
@@ -239,14 +237,17 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 Text(
                   l10n.filterRunbooksHint,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF6A6058),
+                    color: const Color(0xFF526071),
                   ),
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
-                      child: Text(l10n.views, style: theme.textTheme.titleMedium),
+                      child: Text(
+                        l10n.views,
+                        style: theme.textTheme.titleMedium,
+                      ),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: _canSavePreset ? _savePreset : null,
@@ -275,7 +276,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                   Text(
                     l10n.saveViewHint,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF6A6058),
+                      color: const Color(0xFF526071),
                     ),
                   ),
                 ],
@@ -301,7 +302,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(l10n.tags, style: theme.textTheme.titleMedium),
+                      child: Text(
+                        l10n.tags,
+                        style: theme.textTheme.titleMedium,
+                      ),
                     ),
                     if (_selectedTags.isNotEmpty)
                       TextButton(
@@ -387,7 +391,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                       mediumText: true,
                     ),
                     InfoPill(
-                      label: contentSourceShortLabel(syncState.source, l10n: l10n),
+                      label: contentSourceShortLabel(
+                        syncState.source,
+                        l10n: l10n,
+                      ),
                       mediumText: true,
                     ),
                   ],
@@ -573,7 +580,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     }
 
     for (final tag in _selectedTags) {
-      items.add(tag == _favoritesTag ? l10n.favoritesOnly : l10n.tagSummary(tag));
+      items.add(
+        tag == _favoritesTag ? l10n.favoritesOnly : l10n.tagSummary(tag),
+      );
     }
 
     return items;
@@ -626,6 +635,7 @@ class _CatalogTile extends StatelessWidget {
           IconButton(
             onPressed: onFavoriteTap,
             icon: Icon(isFavorite ? Icons.bookmark : Icons.bookmark_border),
+            tooltip: isFavorite ? context.l10n.saved : context.l10n.save,
           ),
           const SizedBox(height: 4),
           const Icon(Icons.chevron_right),
@@ -635,12 +645,7 @@ class _CatalogTile extends StatelessWidget {
   }
 }
 
-enum CatalogSort {
-  titleAsc,
-  titleDesc,
-  favoritesFirst,
-  symptomCount;
-}
+enum CatalogSort { titleAsc, titleDesc, favoritesFirst, symptomCount }
 
 const String _favoritesTag = '__favorites__';
 

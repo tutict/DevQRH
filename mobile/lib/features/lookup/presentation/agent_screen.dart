@@ -40,91 +40,87 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
     final agentState = ref.watch(agentControllerProvider);
 
     return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-          children: [
-            Text(l10n.agentTitle, style: theme.textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.agentIntro,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF5B5148),
-              ),
+      body: PageFrame(
+        children: [
+          Text(l10n.agentTitle, style: theme.textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            l10n.agentIntro,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF526071),
             ),
-            const SizedBox(height: 18),
-            SectionCard(
-              title: l10n.agentInputTitle,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _queryController,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: _runAgent,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      hintText: l10n.agentInputHint,
-                      prefixIcon: const Icon(Icons.psychology_alt_outlined),
-                    ),
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            title: l10n.agentInputTitle,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _queryController,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: _runAgent,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: l10n.agentInputHint,
+                    prefixIcon: const Icon(Icons.psychology_alt_outlined),
                   ),
-                  const SizedBox(height: 14),
-                  FilledButton.icon(
-                    onPressed: () => _runAgent(),
-                    icon: const Icon(Icons.auto_awesome),
-                    label: Text(l10n.agentRun),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            SectionCard(
-              title: l10n.agentQuickPrompts,
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _PromptChip(
-                    label: 'service lag after deploy',
-                    onPressed: () => _runAgent('service lag after deploy'),
-                  ),
-                  _PromptChip(
-                    label: 'cpu and db spike',
-                    onPressed: () => _runAgent('cpu and db spike'),
-                  ),
-                  _PromptChip(
-                    label: 'timeout query and memory growth',
-                    onPressed: () =>
-                        _runAgent('timeout query and memory growth'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            agentState.when(
-              data: (response) {
-                if (response == null) {
-                  return EmptyContentState(
-                    title: l10n.agentWaitingTitle,
-                    description: l10n.agentWaitingDescription,
-                  );
-                }
-                return _AgentResultPanel(response: response);
-              },
-              error: (error, stackTrace) => EmptyContentState(
-                title: l10n.agentFailed,
-                description: l10n.localizeContentError(error.toString()),
-              ),
-              loading: () => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
                 ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: () => _runAgent(),
+                  icon: const Icon(Icons.auto_awesome),
+                  label: Text(l10n.agentRun),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            title: l10n.agentQuickPrompts,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _PromptChip(
+                  label: 'service lag after deploy',
+                  onPressed: () => _runAgent('service lag after deploy'),
+                ),
+                _PromptChip(
+                  label: 'cpu and db spike',
+                  onPressed: () => _runAgent('cpu and db spike'),
+                ),
+                _PromptChip(
+                  label: 'timeout query and memory growth',
+                  onPressed: () => _runAgent('timeout query and memory growth'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          agentState.when(
+            data: (response) {
+              if (response == null) {
+                return EmptyContentState(
+                  title: l10n.agentWaitingTitle,
+                  description: l10n.agentWaitingDescription,
+                );
+              }
+              return _AgentResultPanel(response: response);
+            },
+            error: (error, stackTrace) => EmptyContentState(
+              title: l10n.agentFailed,
+              description: l10n.localizeContentError(error.toString()),
+            ),
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -178,7 +174,7 @@ class _AgentResultPanel extends StatelessWidget {
               ? Text(
                   l10n.agentNoClarifiers,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF6A6058),
+                    color: const Color(0xFF526071),
                   ),
                 )
               : Column(
@@ -197,7 +193,7 @@ class _AgentResultPanel extends StatelessWidget {
               ? Text(
                   l10n.agentNoCandidates,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF6A6058),
+                    color: const Color(0xFF526071),
                   ),
                 )
               : Column(
@@ -238,7 +234,7 @@ class _RagAnswerCard extends StatelessWidget {
           Text(
             answer.notice!,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF6A6058),
+              color: const Color(0xFF526071),
             ),
           ),
           const SizedBox(height: 10),
@@ -300,7 +296,7 @@ class _AgentBestMatchCard extends StatelessWidget {
             item.checklist.symptoms.take(2).join(' / '),
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF6A6058)),
+            ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF526071)),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -357,7 +353,7 @@ class _AgentAlternativeCard extends StatelessWidget {
               l10n.agentScore,
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: const Color(0xFF6A6058)),
+              ).textTheme.bodySmall?.copyWith(color: const Color(0xFF526071)),
             ),
           ],
         ),

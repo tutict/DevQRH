@@ -31,50 +31,45 @@ class RecentScreen extends ConsumerWidget {
       ),
       body: recentState.when(
         data: (ids) {
-          return Column(
+          return PageFrame(
+            safeTop: false,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: PageOverviewCard(
-                  title: l10n.recentActivity,
-                  description: buildCollectionSummaryForTest(
-                    count: ids.length,
-                    totalCount: totalRunbooks,
-                    activityLabel: l10n.viewed,
-                    source: syncState.source,
-                    l10n: l10n,
-                  ),
-                  pills: [
-                    l10n.recentCount(ids.length),
-                    l10n.runbooksCount(totalRunbooks),
-                    contentSourceShortLabel(syncState.source, l10n: l10n),
-                  ],
+              PageOverviewCard(
+                title: l10n.recentActivity,
+                description: buildCollectionSummaryForTest(
+                  count: ids.length,
+                  totalCount: totalRunbooks,
+                  activityLabel: l10n.viewed,
+                  source: syncState.source,
+                  l10n: l10n,
                 ),
+                pills: [
+                  l10n.recentCount(ids.length),
+                  l10n.runbooksCount(totalRunbooks),
+                  contentSourceShortLabel(syncState.source, l10n: l10n),
+                ],
               ),
-              Expanded(
-                child: ids.isEmpty
-                    ? EmptyContentState(
-                        title: l10n.noRecentRunbooks,
-                        description: l10n.openRunbookHint,
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                        itemBuilder: (context, index) {
-                          return SavedChecklistTile(
-                            checklistId: ids[index],
-                            subtitleBuilder: (checklist) =>
-                                buildSavedChecklistSubtitle(
-                                  checklist,
-                                  preferSymptoms: true,
-                                ),
-                            trailingIcon: Icons.chevron_right,
-                          );
-                        },
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
-                        itemCount: ids.length,
-                      ),
-              ),
+              const SizedBox(height: 14),
+              if (ids.isEmpty)
+                EmptyContentState(
+                  title: l10n.noRecentRunbooks,
+                  description: l10n.openRunbookHint,
+                )
+              else
+                ...ids.map(
+                  (id) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SavedChecklistTile(
+                      checklistId: id,
+                      subtitleBuilder: (checklist) =>
+                          buildSavedChecklistSubtitle(
+                            checklist,
+                            preferSymptoms: true,
+                          ),
+                      trailingIcon: Icons.chevron_right,
+                    ),
+                  ),
+                ),
             ],
           );
         },

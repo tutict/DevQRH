@@ -37,6 +37,7 @@ class ChecklistDetailScreen extends ConsumerWidget {
                   ? Icons.bookmark
                   : Icons.bookmark_border,
             ),
+            tooltip: favorites.contains(checklistId) ? l10n.saved : l10n.save,
           ),
         ],
       ),
@@ -48,8 +49,9 @@ class ChecklistDetailScreen extends ConsumerWidget {
           );
           return _RecentTracker(
             checklistId: checklist.id,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            child: PageFrame(
+              safeTop: false,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
                 Text(
                   checklist.title,
@@ -66,7 +68,6 @@ class ChecklistDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 SectionCard(
                   title: l10n.copyTools,
-                  borderRadius: 22,
                   titleSpacing: 12,
                   child: Wrap(
                     spacing: 10,
@@ -98,7 +99,6 @@ class ChecklistDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
                 SectionCard(
                   title: l10n.immediateActions,
-                  borderRadius: 22,
                   titleSpacing: 12,
                   child: Column(
                     children: checklist.immediateActions
@@ -109,7 +109,6 @@ class ChecklistDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 SectionCard(
                   title: l10n.decisionTree,
-                  borderRadius: 22,
                   titleSpacing: 12,
                   child: Column(
                     children: checklist.decisionTree
@@ -125,21 +124,18 @@ class ChecklistDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 SectionCard(
                   title: l10n.symptoms,
-                  borderRadius: 22,
                   titleSpacing: 12,
                   child: _BulletList(items: checklist.symptoms),
                 ),
                 const SizedBox(height: 16),
                 SectionCard(
                   title: l10n.rootCause,
-                  borderRadius: 22,
                   titleSpacing: 12,
                   child: _BulletList(items: checklist.rootCause),
                 ),
                 const SizedBox(height: 16),
                 SectionCard(
                   title: l10n.longTermFix,
-                  borderRadius: 22,
                   titleSpacing: 12,
                   child: _BulletList(items: checklist.longTermFix),
                 ),
@@ -147,7 +143,6 @@ class ChecklistDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   SectionCard(
                     title: l10n.recent,
-                    borderRadius: 22,
                     titleSpacing: 12,
                     child: Column(
                       children: recentChain
@@ -171,7 +166,6 @@ class ChecklistDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   SectionCard(
                     title: l10n.related,
-                    borderRadius: 22,
                     titleSpacing: 12,
                     child: Column(
                       children: related
@@ -216,10 +210,7 @@ Future<void> _copyToClipboard(
   ).showSnackBar(SnackBar(content: Text(successMessage)));
 }
 
-String _buildChecklistSummary(
-  Checklist checklist,
-  AppLocalizations l10n,
-) {
+String _buildChecklistSummary(Checklist checklist, AppLocalizations l10n) {
   final buffer = StringBuffer()
     ..writeln(checklist.title)
     ..writeln('${l10n.checklistSummaryId}: ${checklist.id}');
@@ -273,7 +264,6 @@ class _RelatedChecklistTile extends StatelessWidget {
       subtitle: checklist.symptoms.take(2).join(' / '),
       labels: checklist.keywords.take(2).toList(),
       onTap: onTap,
-      borderRadius: 18,
       padding: const EdgeInsets.symmetric(vertical: 8),
       titleSubtitleSpacing: 4,
       subtitleLabelsSpacing: 8,

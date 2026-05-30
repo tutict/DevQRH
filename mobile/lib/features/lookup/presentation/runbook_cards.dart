@@ -5,8 +5,8 @@ class RunbookCardFrame extends StatelessWidget {
     super.key,
     required this.child,
     required this.onTap,
-    this.borderRadius = 20,
-    this.padding = const EdgeInsets.all(16),
+    this.borderRadius = 8,
+    this.padding = const EdgeInsets.all(14),
   });
 
   final Widget child;
@@ -16,15 +16,17 @@ class RunbookCardFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(color: Theme.of(context).colorScheme.outline),
+          border: Border.all(color: theme.colorScheme.outline),
         ),
         child: child,
       ),
@@ -40,8 +42,8 @@ class RunbookCard extends StatelessWidget {
     required this.onTap,
     required this.trailing,
     this.labels = const [],
-    this.borderRadius = 20,
-    this.padding = const EdgeInsets.all(16),
+    this.borderRadius = 8,
+    this.padding = const EdgeInsets.all(14),
     this.titleSubtitleSpacing = 6,
     this.subtitleLabelsSpacing = 10,
   });
@@ -74,7 +76,7 @@ class RunbookCard extends StatelessWidget {
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF6A6058),
+                    color: const Color(0xFF526071),
                   ),
                 ),
                 if (labels.isNotEmpty) ...[

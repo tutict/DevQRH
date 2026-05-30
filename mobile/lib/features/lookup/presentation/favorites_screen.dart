@@ -32,50 +32,45 @@ class FavoritesScreen extends ConsumerWidget {
       ),
       body: favoritesState.when(
         data: (ids) {
-          return Column(
+          return PageFrame(
+            safeTop: false,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: PageOverviewCard(
-                  title: l10n.savedRunbooks,
-                  description: buildCollectionSummaryForTest(
-                    count: ids.length,
-                    totalCount: totalRunbooks,
-                    activityLabel: l10n.saved,
-                    source: syncState.source,
-                    l10n: l10n,
-                  ),
-                  pills: [
-                    l10n.favoritesCount(ids.length),
-                    l10n.runbooksCount(totalRunbooks),
-                    contentSourceShortLabel(syncState.source, l10n: l10n),
-                  ],
+              PageOverviewCard(
+                title: l10n.savedRunbooks,
+                description: buildCollectionSummaryForTest(
+                  count: ids.length,
+                  totalCount: totalRunbooks,
+                  activityLabel: l10n.saved,
+                  source: syncState.source,
+                  l10n: l10n,
                 ),
+                pills: [
+                  l10n.favoritesCount(ids.length),
+                  l10n.runbooksCount(totalRunbooks),
+                  contentSourceShortLabel(syncState.source, l10n: l10n),
+                ],
               ),
-              Expanded(
-                child: ids.isEmpty
-                    ? EmptyContentState(
-                        title: l10n.noFavorites,
-                        description: l10n.bookmarkRunbooksHint,
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                        itemBuilder: (context, index) {
-                          return SavedChecklistTile(
-                            checklistId: ids[index],
-                            subtitleBuilder: (checklist) =>
-                                buildSavedChecklistSubtitle(
-                                  checklist,
-                                  preferSymptoms: false,
-                                ),
-                            trailingIcon: Icons.bookmark,
-                          );
-                        },
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
-                        itemCount: ids.length,
-                      ),
-              ),
+              const SizedBox(height: 14),
+              if (ids.isEmpty)
+                EmptyContentState(
+                  title: l10n.noFavorites,
+                  description: l10n.bookmarkRunbooksHint,
+                )
+              else
+                ...ids.map(
+                  (id) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SavedChecklistTile(
+                      checklistId: id,
+                      subtitleBuilder: (checklist) =>
+                          buildSavedChecklistSubtitle(
+                            checklist,
+                            preferSymptoms: false,
+                          ),
+                      trailingIcon: Icons.bookmark,
+                    ),
+                  ),
+                ),
             ],
           );
         },
@@ -182,7 +177,7 @@ class _ChecklistTilePlaceholder extends StatelessWidget {
       height: 84,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       alignment: Alignment.centerLeft,
@@ -191,7 +186,7 @@ class _ChecklistTilePlaceholder extends StatelessWidget {
         context.l10n.loadingRunbook,
         style: Theme.of(
           context,
-        ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF6A6058)),
+        ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF526071)),
       ),
     );
   }
@@ -212,7 +207,7 @@ class _UnavailableChecklistTile extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Row(
@@ -229,7 +224,7 @@ class _UnavailableChecklistTile extends StatelessWidget {
                 Text(
                   context.l10n.runbookNotCachedYet,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF6A6058),
+                    color: const Color(0xFF526071),
                   ),
                 ),
               ],

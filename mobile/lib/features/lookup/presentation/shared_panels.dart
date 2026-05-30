@@ -5,9 +5,9 @@ class SectionCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.child,
-    this.borderRadius = 24,
-    this.titleSpacing = 14,
-    this.padding = const EdgeInsets.all(16),
+    this.borderRadius = 8,
+    this.titleSpacing = 12,
+    this.padding = const EdgeInsets.fromLTRB(16, 14, 16, 16),
   });
 
   final String title;
@@ -18,18 +18,20 @@ class SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        border: Border.all(color: theme.colorScheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          Text(title, style: theme.textTheme.titleMedium),
           SizedBox(height: titleSpacing),
           child,
         ],
@@ -52,19 +54,67 @@ class InfoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final baseStyle = mediumText
-        ? Theme.of(context).textTheme.bodyMedium
-        : Theme.of(context).textTheme.bodySmall;
+        ? theme.textTheme.bodyMedium
+        : theme.textTheme.bodySmall;
 
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: const Color(0xFFF2E7D8),
-        borderRadius: BorderRadius.circular(999),
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
-        style: baseStyle?.copyWith(fontWeight: FontWeight.w700),
+        style: baseStyle?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class PageFrame extends StatelessWidget {
+  const PageFrame({
+    super.key,
+    required this.children,
+    this.padding = const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    this.maxWidth = 960,
+    this.safeTop = true,
+  });
+
+  final List<Widget> children;
+  final EdgeInsetsGeometry padding;
+  final double maxWidth;
+  final bool safeTop;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedPadding = padding.resolve(Directionality.of(context));
+
+    return SafeArea(
+      top: safeTop,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontalPadding = constraints.maxWidth >= 720 ? 24.0 : 16.0;
+
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  resolvedPadding.top,
+                  horizontalPadding,
+                  resolvedPadding.bottom,
+                ),
+                children: children,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

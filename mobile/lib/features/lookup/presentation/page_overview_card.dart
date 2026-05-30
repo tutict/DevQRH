@@ -18,24 +18,26 @@ class PageOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          Text(title, style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
             description,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF6A6058)),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF526071),
+            ),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -49,10 +51,7 @@ class PageOverviewCard extends StatelessWidget {
   }
 }
 
-String contentSourceShortLabel(
-  ContentSource source, {
-  AppLocalizations? l10n,
-}) {
+String contentSourceShortLabel(ContentSource source, {AppLocalizations? l10n}) {
   final strings = l10n ?? AppLocalizations.english;
   return switch (source) {
     ContentSource.bundled => strings.bundledShort,

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/i18n/app_localizations.dart';
 import '../domain/models.dart';
 import 'lookup_controller.dart';
+import 'page_overview_card.dart';
 import 'runbook_cards.dart';
 import 'shared_panels.dart';
 
@@ -73,9 +74,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(
-      SnackBar(content: Text(context.l10n.firstActionCopied)),
-    );
+    ).showSnackBar(SnackBar(content: Text(context.l10n.firstActionCopied)));
   }
 
   @override
@@ -91,229 +90,246 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final l10n = context.l10n;
 
     return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(l10n.appTitle, style: theme.textTheme.headlineMedium),
+      body: PageFrame(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.appTitle,
+                  style: theme.textTheme.headlineMedium,
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: () => context.push('/catalog'),
-                  icon: const Icon(Icons.grid_view),
-                  label: Text(l10n.catalog),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => context.push('/catalog'),
+                icon: const Icon(Icons.grid_view),
+                label: Text(l10n.catalog),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.searchIntro,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF526071),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              InfoPill(
+                label: l10n.runbooksCount(manifest?.checklistCount ?? 0),
+              ),
+              InfoPill(
+                label: contentSourceShortLabel(
+                  contentSyncState.source,
+                  l10n: l10n,
+                ),
+              ),
+              InfoPill(
+                label: contentSyncState.hasContent ? l10n.ready : l10n.empty,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            title: l10n.searchSectionTitle,
+            titleSpacing: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _queryController,
+                  onChanged: _onQueryChanged,
+                  onSubmitted: (value) => _submitSearch(value, syncInput: true),
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: l10n.searchPlaceholder,
+                    prefixIcon: const Icon(Icons.search),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _SuggestionPanel(
+                  title: _liveQuery.trim().isEmpty
+                      ? l10n.recentSearchesTitle
+                      : l10n.suggestionsTitle,
+                  suggestions: suggestions,
+                  showClear:
+                      _liveQuery.trim().isEmpty &&
+                      (recentSearchesState.valueOrNull?.isNotEmpty ?? false),
+                  onSuggestionTap: (value) =>
+                      _submitSearch(value, syncInput: true),
+                  onClear: () =>
+                      ref.read(recentSearchesProvider.notifier).clear(),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.searchIntro,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF5B5148),
-              ),
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            title: l10n.quickSearches,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _QuickChip(
+                  label: 'CPU 100%',
+                  onPressed: () => _submitSearch('CPU 100%', syncInput: true),
+                ),
+                _QuickChip(
+                  label: 'service lag',
+                  onPressed: () =>
+                      _submitSearch('service lag', syncInput: true),
+                ),
+                _QuickChip(
+                  label: 'timeout query',
+                  onPressed: () =>
+                      _submitSearch('timeout query', syncInput: true),
+                ),
+                _QuickChip(
+                  label: 'memory leak',
+                  onPressed: () =>
+                      _submitSearch('memory leak', syncInput: true),
+                ),
+              ],
             ),
-            const SizedBox(height: 18),
-            SectionCard(
-              title: l10n.searchSectionTitle,
-              titleSpacing: 12,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _queryController,
-                    onChanged: _onQueryChanged,
-                    onSubmitted: (value) =>
-                        _submitSearch(value, syncInput: true),
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: l10n.searchPlaceholder,
-                      prefixIcon: const Icon(Icons.search),
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            title: l10n.contentStatus,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (contentSyncState.isSyncing)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 14),
+                    child: LinearProgressIndicator(),
+                  ),
+                Text(
+                  buildHomeSyncSummaryForTest(
+                    source: contentSyncState.source,
+                    manifest: manifest,
+                    lastSyncedAt: contentSyncState.lastSyncedAt,
+                    l10n: l10n,
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _SummaryPill(
+                      label: l10n.runbooksCount(manifest?.checklistCount ?? 0),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  _SuggestionPanel(
-                    title: _liveQuery.trim().isEmpty
-                        ? l10n.recentSearchesTitle
-                        : l10n.suggestionsTitle,
-                    suggestions: suggestions,
-                    showClear:
-                        _liveQuery.trim().isEmpty &&
-                        (recentSearchesState.valueOrNull?.isNotEmpty ?? false),
-                    onSuggestionTap: (value) =>
-                        _submitSearch(value, syncInput: true),
-                    onClear: () =>
-                        ref.read(recentSearchesProvider.notifier).clear(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            SectionCard(
-              title: l10n.quickSearches,
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _QuickChip(
-                    label: 'CPU 100%',
-                    onPressed: () => _submitSearch('CPU 100%', syncInput: true),
-                  ),
-                  _QuickChip(
-                    label: 'service lag',
-                    onPressed: () =>
-                        _submitSearch('service lag', syncInput: true),
-                  ),
-                  _QuickChip(
-                    label: 'timeout query',
-                    onPressed: () =>
-                        _submitSearch('timeout query', syncInput: true),
-                  ),
-                  _QuickChip(
-                    label: 'memory leak',
-                    onPressed: () =>
-                        _submitSearch('memory leak', syncInput: true),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            SectionCard(
-              title: l10n.contentStatus,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (contentSyncState.isSyncing)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 14),
-                      child: LinearProgressIndicator(),
-                    ),
-                  Text(
-                    buildHomeSyncSummaryForTest(
-                      source: contentSyncState.source,
-                      manifest: manifest,
-                      lastSyncedAt: contentSyncState.lastSyncedAt,
-                      l10n: l10n,
-                    ),
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      _SummaryPill(
-                        label: l10n.runbooksCount(manifest?.checklistCount ?? 0),
-                      ),
-                      _SummaryPill(
-                        label: l10n.favoritesCount(
-                          favoritesState.valueOrNull?.length ?? 0,
-                        ),
-                      ),
-                      _SummaryPill(
-                        label: l10n.recentCount(
-                          recentState.valueOrNull?.length ?? 0,
-                        ),
-                      ),
-                      _SummaryPill(
-                        label: l10n.searchesCount(
-                          recentSearchesState.valueOrNull?.length ?? 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (contentSyncState.errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      l10n.localizeContentError(contentSyncState.errorMessage!),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFFB14622),
+                    _SummaryPill(
+                      label: l10n.favoritesCount(
+                        favoritesState.valueOrNull?.length ?? 0,
                       ),
                     ),
-                    if (contentSyncState.hasContent) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.importedContentFallbackNotice,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF6A6058),
-                        ),
+                    _SummaryPill(
+                      label: l10n.recentCount(
+                        recentState.valueOrNull?.length ?? 0,
                       ),
-                    ],
+                    ),
+                    _SummaryPill(
+                      label: l10n.searchesCount(
+                        recentSearchesState.valueOrNull?.length ?? 0,
+                      ),
+                    ),
                   ],
-                  const SizedBox(height: 14),
-                  FilledButton.tonal(
-                    onPressed: () => context.go('/settings'),
-                    child: Text(l10n.manageLibrary),
+                ),
+                if (contentSyncState.errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.localizeContentError(contentSyncState.errorMessage!),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
+                  if (contentSyncState.hasContent) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.importedContentFallbackNotice,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF526071),
+                      ),
+                    ),
+                  ],
                 ],
-              ),
+                const SizedBox(height: 14),
+                FilledButton.tonal(
+                  onPressed: () => context.go('/settings'),
+                  child: Text(l10n.manageLibrary),
+                ),
+              ],
             ),
-            const SizedBox(height: 18),
-            SectionCard(
-              title: l10n.topMatches,
-              child: lookupState.when(
-                data: (result) {
-                  if (result == null || result.candidates.isEmpty) {
-                    return _EmptyState(
-                      title: l10n.waitingForInput,
-                      description: l10n.waitingForInputDescription,
-                    );
-                  }
-                  return Column(
-                    children: result.candidates
-                        .asMap()
-                        .entries
-                        .map(
-                          (entry) => _ResultTile(
-                            rank: entry.key + 1,
-                            item: entry.value,
-                            query: result.query,
-                            matchHints: ref.watch(
-                              matchHintsProvider((
-                                result.query,
-                                entry.value.checklist,
-                              )),
-                            ),
-                            isFavorite:
-                                favoritesState.valueOrNull?.contains(
-                                  entry.value.checklist.id,
-                                ) ??
-                                false,
-                            isExpanded:
-                                _expandedChecklistId ==
-                                entry.value.checklist.id,
-                            onTap: () => context.push(
-                              '/checklists/${entry.value.checklist.id}?title=${Uri.encodeComponent(entry.value.checklist.title)}',
-                            ),
-                            onExpandTap: () =>
-                                _toggleExpanded(entry.value.checklist.id),
-                            onCopyFirstAction: () =>
-                                _copyFirstAction(entry.value.checklist),
-                            onFavoriteTap: () {
-                              ref
-                                  .read(favoritesProvider.notifier)
-                                  .toggle(entry.value.checklist.id);
-                            },
-                          ),
-                        )
-                        .toList(),
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            title: l10n.topMatches,
+            child: lookupState.when(
+              data: (result) {
+                if (result == null || result.candidates.isEmpty) {
+                  return _EmptyState(
+                    title: l10n.waitingForInput,
+                    description: l10n.waitingForInputDescription,
                   );
-                },
-                error: (error, stackTrace) => _EmptyState(
-                  title: l10n.searchFailed,
-                  description: l10n.localizeContentError(error.toString()),
-                ),
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
+                }
+                return Column(
+                  children: result.candidates
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => _ResultTile(
+                          rank: entry.key + 1,
+                          item: entry.value,
+                          query: result.query,
+                          matchHints: ref.watch(
+                            matchHintsProvider((
+                              result.query,
+                              entry.value.checklist,
+                            )),
+                          ),
+                          isFavorite:
+                              favoritesState.valueOrNull?.contains(
+                                entry.value.checklist.id,
+                              ) ??
+                              false,
+                          isExpanded:
+                              _expandedChecklistId == entry.value.checklist.id,
+                          onTap: () => context.push(
+                            '/checklists/${entry.value.checklist.id}?title=${Uri.encodeComponent(entry.value.checklist.title)}',
+                          ),
+                          onExpandTap: () =>
+                              _toggleExpanded(entry.value.checklist.id),
+                          onCopyFirstAction: () =>
+                              _copyFirstAction(entry.value.checklist),
+                          onFavoriteTap: () {
+                            ref
+                                .read(favoritesProvider.notifier)
+                                .toggle(entry.value.checklist.id);
+                          },
+                        ),
+                      )
+                      .toList(),
+                );
+              },
+              error: (error, stackTrace) => _EmptyState(
+                title: l10n.searchFailed,
+                description: l10n.localizeContentError(error.toString()),
+              ),
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -355,7 +371,7 @@ class _SuggestionPanel extends StatelessWidget {
             : context.l10n.suggestionsEmpty,
         style: Theme.of(
           context,
-        ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF6A6058)),
+        ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF526071)),
       );
     }
 
@@ -421,7 +437,6 @@ class _ResultTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return RunbookCardFrame(
       onTap: onTap,
-      borderRadius: 18,
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,8 +446,8 @@ class _ResultTile extends StatelessWidget {
             height: 38,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: const Color(0xFFD95C18),
+              borderRadius: BorderRadius.circular(8),
+              color: Theme.of(context).colorScheme.primary,
             ),
             child: Text(
               '$rank',
@@ -455,7 +470,7 @@ class _ResultTile extends StatelessWidget {
                 Text(
                   item.checklist.symptoms.take(2).join(' / '),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF6A6058),
+                    color: const Color(0xFF526071),
                   ),
                 ),
                 if (matchHints.isNotEmpty) ...[
@@ -463,7 +478,7 @@ class _ResultTile extends StatelessWidget {
                   Text(
                     context.l10n.matchSignalsFor(query),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF6A6058),
+                      color: const Color(0xFF526071),
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -526,6 +541,7 @@ class _ResultTile extends StatelessWidget {
           IconButton(
             onPressed: onFavoriteTap,
             icon: Icon(isFavorite ? Icons.bookmark : Icons.bookmark_border),
+            tooltip: isFavorite ? context.l10n.saved : context.l10n.save,
           ),
         ],
       ),
@@ -544,8 +560,8 @@ class _PreviewPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F2E7),
-        borderRadius: BorderRadius.circular(16),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(summary, style: Theme.of(context).textTheme.bodyMedium),
     );
@@ -562,8 +578,8 @@ class _ScorePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF171411),
-        borderRadius: BorderRadius.circular(999),
+        color: Theme.of(context).colorScheme.secondary,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         score.toStringAsFixed(2),
