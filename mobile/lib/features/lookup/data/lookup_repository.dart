@@ -22,6 +22,7 @@ class LookupRepository {
   final AssetBundle _assetBundle;
   final RagSidecarClient _sidecarClient;
   final OfflineLookupMatcher _offlineLookupMatcher;
+  ContentBootstrap? _preferredBootstrapCache;
 
   void dispose() {
     _sidecarClient.dispose();
@@ -67,6 +68,7 @@ class LookupRepository {
     try {
       final imported = await loadCachedBootstrap();
       if (imported != null) {
+        _preferredBootstrapCache = imported;
         return ContentSyncResult(
           bootstrap: imported,
           usesImportedContent: true,
@@ -74,11 +76,13 @@ class LookupRepository {
       }
 
       final bundled = await loadBundledBootstrap();
+      _preferredBootstrapCache = bundled;
       return ContentSyncResult(bootstrap: bundled, usesImportedContent: false);
     } catch (error) {
       await _localStore.clearContentCache();
       try {
         final bundled = await loadBundledBootstrap();
+        _preferredBootstrapCache = bundled;
         return ContentSyncResult(
           bootstrap: bundled,
           usesImportedContent: false,
@@ -103,6 +107,7 @@ class LookupRepository {
         matchingConfig: bootstrap.matchingConfig.toJson(),
         checklists: bootstrap.checklists.map((item) => item.toJson()).toList(),
       );
+      _preferredBootstrapCache = bootstrap;
       return ContentSyncResult(bootstrap: bootstrap, usesImportedContent: true);
     } catch (error) {
       return ContentSyncResult(
@@ -116,6 +121,7 @@ class LookupRepository {
   Future<ContentSyncResult> restoreBundledContent() async {
     await _localStore.clearContentCache();
     final bundled = await loadBundledBootstrap();
+    _preferredBootstrapCache = bundled;
     return ContentSyncResult(bootstrap: bundled, usesImportedContent: false);
   }
 
@@ -145,8 +151,14 @@ class LookupRepository {
   }
 
   Future<ContentBootstrap> loadPreferredBootstrap() async {
+    final cachedPreferred = _preferredBootstrapCache;
+    if (cachedPreferred != null) {
+      return cachedPreferred;
+    }
     final cached = await loadCachedBootstrap();
-    return cached ?? loadBundledBootstrap();
+    final resolved = cached ?? await loadBundledBootstrap();
+    _preferredBootstrapCache = resolved;
+    return resolved;
   }
 
   Future<ContentManifest?> loadCachedManifest() async {

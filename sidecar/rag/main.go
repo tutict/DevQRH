@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -13,9 +15,10 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -97,9 +100,20 @@ type MatchingWeights struct {
 	PhraseBoost       float64 `json:"phraseBoost"`
 }
 
-type lookupRequest struct {
-	Query     string           `json:"query"`
+type contentSyncRequest struct {
 	Bootstrap ContentBootstrap `json:"bootstrap"`
+}
+
+type contentSyncResponse struct {
+	ContentVersion string `json:"contentVersion"`
+	ChecklistCount int    `json:"checklistCount"`
+	IndexedAt      int64  `json:"indexedAt"`
+}
+
+type lookupRequest struct {
+	Query          string            `json:"query"`
+	ContentVersion string            `json:"contentVersion,omitempty"`
+	Bootstrap      *ContentBootstrap `json:"bootstrap,omitempty"`
 }
 
 type ragAnswerResponse struct {
@@ -119,7 +133,154 @@ type ragCitation struct {
 	Score float64 `json:"score"`
 }
 
-type server struct{}
+const (
+	maxContentSyncBytes = 32 << 20
+	minMatchScore       = 0.25
+)
+
+type server struct {
+	store      *contentStore
+	metrics    *serverMetrics
+	llmLimiter chan struct{}
+	llmBreaker *circuitBreaker
+	llmClient  *http.Client
+}
+
+func newServer() *server {
+	return &server{
+		store:      &contentStore{},
+		metrics:    &serverMetrics{},
+		llmLimiter: make(chan struct{}, llmMaxConcurrency()),
+		llmBreaker: &circuitBreaker{
+			maxFailures: 3,
+			cooldown:    30 * time.Second,
+		},
+		llmClient: &http.Client{},
+	}
+}
+
+type serverMetrics struct {
+	requests       atomic.Int64
+	errors         atomic.Int64
+	contentSyncs   atomic.Int64
+	llmRequests    atomic.Int64
+	llmFailures    atomic.Int64
+	llmRejected    atomic.Int64
+	lastContentSet atomic.Int64
+}
+
+type contentStore struct {
+	mu       sync.RWMutex
+	current  *contentSnapshot
+	versions map[string]*contentSnapshot
+}
+
+type contentSnapshot struct {
+	version        string
+	manifest       ContentManifest
+	runtime        matchingRuntime
+	entries        []indexedChecklist
+	checklistCount int
+	indexedAt      time.Time
+}
+
+type indexedChecklist struct {
+	checklist Checklist
+	index     checklistIndex
+}
+
+func (store *contentStore) sync(bootstrap ContentBootstrap) (*contentSnapshot, error) {
+	snapshot, err := newContentSnapshot(bootstrap)
+	if err != nil {
+		return nil, err
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if store.versions == nil {
+		store.versions = map[string]*contentSnapshot{}
+	}
+	store.current = snapshot
+	store.versions[snapshot.version] = snapshot
+	return snapshot, nil
+}
+
+func (store *contentStore) get(version string) (*contentSnapshot, bool) {
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	if version == "" {
+		if store.current == nil {
+			return nil, false
+		}
+		return store.current, true
+	}
+	if store.versions == nil {
+		return nil, false
+	}
+	snapshot, ok := store.versions[version]
+	return snapshot, ok
+}
+
+func newContentSnapshot(bootstrap ContentBootstrap) (*contentSnapshot, error) {
+	if err := validateBootstrap(bootstrap); err != nil {
+		return nil, err
+	}
+
+	config := normalizeConfig(bootstrap.MatchingConfig)
+	runtime := newMatchingRuntime(config)
+	entries := make([]indexedChecklist, 0, len(bootstrap.Checklists))
+	for _, checklist := range bootstrap.Checklists {
+		entries = append(entries, indexedChecklist{
+			checklist: checklist,
+			index:     newChecklistIndex(checklist),
+		})
+	}
+
+	return &contentSnapshot{
+		version:        contentVersion(bootstrap),
+		manifest:       bootstrap.Manifest,
+		runtime:        runtime,
+		entries:        entries,
+		checklistCount: len(entries),
+		indexedAt:      time.Now(),
+	}, nil
+}
+
+func validateBootstrap(bootstrap ContentBootstrap) error {
+	if len(bootstrap.Checklists) == 0 {
+		return fmt.Errorf("bootstrap must include at least one checklist")
+	}
+	if bootstrap.Manifest.ChecklistCount > 0 && bootstrap.Manifest.ChecklistCount != len(bootstrap.Checklists) {
+		return fmt.Errorf("manifest checklistCount %d does not match %d checklists", bootstrap.Manifest.ChecklistCount, len(bootstrap.Checklists))
+	}
+	seen := map[string]bool{}
+	for index, checklist := range bootstrap.Checklists {
+		id := strings.TrimSpace(checklist.ID)
+		title := strings.TrimSpace(checklist.Title)
+		if id == "" || title == "" {
+			return fmt.Errorf("checklist %d must include non-empty id and title", index)
+		}
+		normalizedID := strings.ToLower(id)
+		if seen[normalizedID] {
+			return fmt.Errorf("duplicate checklist id %q", id)
+		}
+		seen[normalizedID] = true
+	}
+	return nil
+}
+
+func contentVersion(bootstrap ContentBootstrap) string {
+	encoded, err := json.Marshal(bootstrap)
+	if err != nil {
+		return strings.TrimSpace(bootstrap.Manifest.Version)
+	}
+	sum := sha256.Sum256(encoded)
+	version := strings.TrimSpace(bootstrap.Manifest.Version)
+	if version == "" {
+		version = "content"
+	}
+	return fmt.Sprintf("%s-%x", version, sum[:8])
+}
 
 func main() {
 	port := flag.Int("port", 0, "loopback port to listen on, 0 chooses a free port")
@@ -131,8 +292,10 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	app := server{}
+	app := newServer()
 	mux.HandleFunc("/health", app.health)
+	mux.HandleFunc("/metrics", app.metricsHandler)
+	mux.HandleFunc("/content/sync", app.contentSync)
 	mux.HandleFunc("/lookup", app.lookup)
 	mux.HandleFunc("/agent/navigate", app.agentNavigate)
 	mux.HandleFunc("/rag/answer", app.ragAnswer)
@@ -150,15 +313,19 @@ func main() {
 	httpServer := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("serve: %v", err)
 	}
 }
 
-func (server) health(w http.ResponseWriter, r *http.Request) {
+func (s *server) health(w http.ResponseWriter, r *http.Request) {
+	s.metrics.requests.Add(1)
 	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	writeJSON(w, map[string]string{
@@ -167,31 +334,84 @@ func (server) health(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (server) lookup(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+func (s *server) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	s.metrics.requests.Add(1)
+	if r.Method != http.MethodGet {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
-	request, ok := decodeLookupRequest(w, r)
-	if !ok {
-		return
+	current, _ := s.store.get("")
+	payload := map[string]any{
+		"requests":       s.metrics.requests.Load(),
+		"errors":         s.metrics.errors.Load(),
+		"contentSyncs":   s.metrics.contentSyncs.Load(),
+		"llmRequests":    s.metrics.llmRequests.Load(),
+		"llmFailures":    s.metrics.llmFailures.Load(),
+		"llmRejected":    s.metrics.llmRejected.Load(),
+		"lastContentSet": s.metrics.lastContentSet.Load(),
 	}
-	writeJSON(w, search(request.Query, request.Bootstrap))
+	if current != nil {
+		payload["contentVersion"] = current.version
+		payload["checklistCount"] = current.checklistCount
+		payload["indexedAt"] = current.indexedAt.UnixMilli()
+	}
+	writeJSON(w, payload)
 }
 
-func (server) agentNavigate(w http.ResponseWriter, r *http.Request) {
+func (s *server) contentSync(w http.ResponseWriter, r *http.Request) {
+	s.metrics.requests.Add(1)
 	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	request, ok := decodeLookupRequest(w, r)
+	var request contentSyncRequest
+	if !s.decodeJSON(w, r, maxContentSyncBytes, &request) {
+		return
+	}
+
+	snapshot, err := s.store.sync(request.Bootstrap)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.metrics.contentSyncs.Add(1)
+	s.metrics.lastContentSet.Store(time.Now().UnixMilli())
+	writeJSON(w, contentSyncResponse{
+		ContentVersion: snapshot.version,
+		ChecklistCount: snapshot.checklistCount,
+		IndexedAt:      snapshot.indexedAt.UnixMilli(),
+	})
+}
+
+func (s *server) lookup(w http.ResponseWriter, r *http.Request) {
+	s.metrics.requests.Add(1)
+	if r.Method != http.MethodPost {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	request, snapshot, ok := s.decodeResolvedLookupRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, searchSnapshot(request.Query, snapshot))
+}
+
+func (s *server) agentNavigate(w http.ResponseWriter, r *http.Request) {
+	s.metrics.requests.Add(1)
+	if r.Method != http.MethodPost {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	request, snapshot, ok := s.decodeResolvedLookupRequest(w, r)
 	if !ok {
 		return
 	}
 
-	lookup := search(request.Query, request.Bootstrap)
+	lookup := searchSnapshot(request.Query, snapshot)
 	var best *RankedChecklist
 	if len(lookup.Candidates) > 0 {
 		candidate := lookup.Candidates[0]
@@ -220,18 +440,19 @@ func (server) agentNavigate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (server) ragAnswer(w http.ResponseWriter, r *http.Request) {
+func (s *server) ragAnswer(w http.ResponseWriter, r *http.Request) {
+	s.metrics.requests.Add(1)
 	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	request, ok := decodeLookupRequest(w, r)
+	request, snapshot, ok := s.decodeResolvedLookupRequest(w, r)
 	if !ok {
 		return
 	}
 
-	lookup := search(request.Query, request.Bootstrap)
+	lookup := searchSnapshot(request.Query, snapshot)
 	citations := make([]ragCitation, 0, len(lookup.Candidates))
 	for _, candidate := range lookup.Candidates {
 		citations = append(citations, ragCitation{
@@ -241,7 +462,7 @@ func (server) ragAnswer(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	answer := generateRAGAnswer(r.Context(), request.Query, lookup.Candidates)
+	answer := s.generateRAGAnswer(r.Context(), request.Query, lookup.Candidates)
 	writeJSON(w, ragAnswerResponse{
 		Query:      request.Query,
 		Answer:     answer.Answer,
@@ -263,14 +484,45 @@ type ragAnswerResult struct {
 }
 
 func generateRAGAnswer(ctx context.Context, query string, candidates []RankedChecklist) ragAnswerResult {
+	return newServer().generateRAGAnswer(ctx, query, candidates)
+}
+
+func (s *server) generateRAGAnswer(ctx context.Context, query string, candidates []RankedChecklist) ragAnswerResult {
 	localAnswer := buildLocalRAGAnswer(query, candidates)
 	config, ok := loadLLMConfig()
 	if !ok {
 		return ragAnswerResult{Answer: localAnswer, Mode: "local"}
 	}
+	if !s.llmBreaker.allow() {
+		s.metrics.llmRejected.Add(1)
+		return ragAnswerResult{
+			Answer:   localAnswer,
+			Mode:     "local_fallback",
+			Provider: config.Provider,
+			Model:    config.Model,
+			Notice:   "LLM provider circuit is open; using local retrieval answer.",
+		}
+	}
 
-	answer, err := callLLM(ctx, config, query, candidates)
+	select {
+	case s.llmLimiter <- struct{}{}:
+		defer func() { <-s.llmLimiter }()
+	default:
+		s.metrics.llmRejected.Add(1)
+		return ragAnswerResult{
+			Answer:   localAnswer,
+			Mode:     "local_fallback",
+			Provider: config.Provider,
+			Model:    config.Model,
+			Notice:   "LLM concurrency limit was reached; using local retrieval answer.",
+		}
+	}
+
+	s.metrics.llmRequests.Add(1)
+	answer, err := callLLM(ctx, s.llmClient, config, query, candidates)
 	if err != nil {
+		s.metrics.llmFailures.Add(1)
+		s.llmBreaker.recordFailure()
 		log.Printf("llm provider failed: %v", err)
 		return ragAnswerResult{
 			Answer:   localAnswer,
@@ -280,6 +532,7 @@ func generateRAGAnswer(ctx context.Context, query string, candidates []RankedChe
 			Notice:   "LLM provider was unavailable; using local retrieval answer.",
 		}
 	}
+	s.llmBreaker.recordSuccess()
 
 	return ragAnswerResult{
 		Answer:   answer,
@@ -346,6 +599,51 @@ type llmConfig struct {
 	Timeout     time.Duration
 }
 
+type circuitBreaker struct {
+	mu          sync.Mutex
+	failures    int
+	maxFailures int
+	openUntil   time.Time
+	cooldown    time.Duration
+}
+
+func (breaker *circuitBreaker) allow() bool {
+	breaker.mu.Lock()
+	defer breaker.mu.Unlock()
+	return time.Now().After(breaker.openUntil)
+}
+
+func (breaker *circuitBreaker) recordSuccess() {
+	breaker.mu.Lock()
+	defer breaker.mu.Unlock()
+	breaker.failures = 0
+	breaker.openUntil = time.Time{}
+}
+
+func (breaker *circuitBreaker) recordFailure() {
+	breaker.mu.Lock()
+	defer breaker.mu.Unlock()
+	breaker.failures++
+	if breaker.failures >= breaker.maxFailures {
+		breaker.openUntil = time.Now().Add(breaker.cooldown)
+	}
+}
+
+func llmMaxConcurrency() int {
+	raw := strings.TrimSpace(os.Getenv("DEVQRH_LLM_MAX_CONCURRENCY"))
+	if raw == "" {
+		return 2
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed <= 0 {
+		return 2
+	}
+	if parsed > 16 {
+		return 16
+	}
+	return parsed
+}
+
 func loadLLMConfig() (llmConfig, bool) {
 	apiKey := strings.TrimSpace(os.Getenv("DEVQRH_LLM_API_KEY"))
 	model := strings.TrimSpace(os.Getenv("DEVQRH_LLM_MODEL"))
@@ -402,7 +700,7 @@ type chatCompletionResponse struct {
 	} `json:"error,omitempty"`
 }
 
-func callLLM(ctx context.Context, config llmConfig, query string, candidates []RankedChecklist) (string, error) {
+func callLLM(ctx context.Context, client *http.Client, config llmConfig, query string, candidates []RankedChecklist) (string, error) {
 	if len(candidates) == 0 || candidates[0].Score <= 0 {
 		return buildLocalRAGAnswer(query, candidates), nil
 	}
@@ -444,7 +742,6 @@ func callLLM(ctx context.Context, config llmConfig, query string, candidates []R
 	request.Header.Set("Authorization", "Bearer "+config.APIKey)
 	request.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: config.Timeout}
 	response, err := client.Do(request)
 	if err != nil {
 		return "", fmt.Errorf("call chat completions: %w", err)
@@ -526,22 +823,79 @@ func writePromptBranches(builder *strings.Builder, label string, values []Checkl
 	builder.WriteString("\n")
 }
 
-func decodeLookupRequest(w http.ResponseWriter, r *http.Request) (lookupRequest, bool) {
+func (s *server) decodeJSON(w http.ResponseWriter, r *http.Request, maxBytes int64, target any) bool {
 	defer r.Body.Close()
 
-	var request lookupRequest
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<20))
-	if err := decoder.Decode(&request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON request")
-		return lookupRequest{}, false
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			s.writeError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+			return false
+		}
+		s.writeError(w, http.StatusBadRequest, "invalid JSON request")
+		return false
 	}
-	return request, true
+	if decoder.Decode(&struct{}{}) != io.EOF {
+		s.writeError(w, http.StatusBadRequest, "request body must contain a single JSON object")
+		return false
+	}
+	return true
+}
+
+func (s *server) decodeResolvedLookupRequest(w http.ResponseWriter, r *http.Request) (lookupRequest, *contentSnapshot, bool) {
+	var request lookupRequest
+	if !s.decodeJSON(w, r, maxContentSyncBytes, &request) {
+		return lookupRequest{}, nil, false
+	}
+	request.Query = strings.TrimSpace(request.Query)
+	if request.Query == "" {
+		s.writeError(w, http.StatusBadRequest, "query is required")
+		return lookupRequest{}, nil, false
+	}
+
+	if request.ContentVersion != "" {
+		if snapshot, ok := s.store.get(request.ContentVersion); ok {
+			return request, snapshot, true
+		}
+		if request.Bootstrap == nil {
+			s.writeError(w, http.StatusConflict, "contentVersion is not synced")
+			return lookupRequest{}, nil, false
+		}
+	}
+
+	if request.Bootstrap != nil {
+		snapshot, err := s.store.sync(*request.Bootstrap)
+		if err != nil {
+			s.writeError(w, http.StatusBadRequest, err.Error())
+			return lookupRequest{}, nil, false
+		}
+		s.metrics.contentSyncs.Add(1)
+		s.metrics.lastContentSet.Store(time.Now().UnixMilli())
+		return request, snapshot, true
+	}
+
+	s.writeError(w, http.StatusBadRequest, "contentVersion or bootstrap is required")
+	return lookupRequest{}, nil, false
 }
 
 func search(query string, bootstrap ContentBootstrap) LookupResponse {
+	snapshot, err := newContentSnapshot(bootstrap)
+	if err != nil {
+		return LookupResponse{
+			Query:      query,
+			BestMatch:  nil,
+			Candidates: []RankedChecklist{},
+		}
+	}
+	return searchSnapshot(query, snapshot)
+}
+
+func searchSnapshot(query string, snapshot *contentSnapshot) LookupResponse {
 	normalizedQuery := normalize(query)
 	queryTokens := tokenize(query)
-	if len(queryTokens) == 0 {
+	if len(queryTokens) == 0 || snapshot == nil {
 		return LookupResponse{
 			Query:      query,
 			BestMatch:  nil,
@@ -549,40 +903,46 @@ func search(query string, bootstrap ContentBootstrap) LookupResponse {
 		}
 	}
 
-	config := normalizeConfig(bootstrap.MatchingConfig)
-	runtime := newMatchingRuntime(config)
-	ranked := make([]RankedChecklist, 0, len(bootstrap.Checklists))
-	for _, checklist := range bootstrap.Checklists {
-		score := scoreChecklist(normalizedQuery, queryTokens, checklist, runtime)
-		ranked = append(ranked, RankedChecklist{
-			Checklist: checklist,
-			Score:     score,
-		})
-	}
-
-	sort.SliceStable(ranked, func(i, j int) bool {
-		if ranked[i].Score != ranked[j].Score {
-			return ranked[i].Score > ranked[j].Score
+	ranked := make([]RankedChecklist, 0, 3)
+	for _, entry := range snapshot.entries {
+		score := scoreIndexedChecklist(normalizedQuery, queryTokens, entry.index, snapshot.runtime)
+		if score < minMatchScore {
+			continue
 		}
-		return ranked[i].Checklist.Title < ranked[j].Checklist.Title
-	})
-
-	limit := 3
-	if len(ranked) < limit {
-		limit = len(ranked)
+		ranked = insertTopCandidate(ranked, RankedChecklist{
+			Checklist: entry.checklist,
+			Score:     score,
+		}, 3)
 	}
-	candidates := ranked[:limit]
 	var best *Checklist
-	if len(candidates) > 0 {
-		checklist := candidates[0].Checklist
+	if len(ranked) > 0 {
+		checklist := ranked[0].Checklist
 		best = &checklist
 	}
 
 	return LookupResponse{
 		Query:      query,
 		BestMatch:  best,
-		Candidates: candidates,
+		Candidates: ranked,
 	}
+}
+
+func insertTopCandidate(candidates []RankedChecklist, candidate RankedChecklist, limit int) []RankedChecklist {
+	insertAt := len(candidates)
+	for index, existing := range candidates {
+		if candidate.Score > existing.Score ||
+			(candidate.Score == existing.Score && candidate.Checklist.Title < existing.Checklist.Title) {
+			insertAt = index
+			break
+		}
+	}
+	candidates = append(candidates, RankedChecklist{})
+	copy(candidates[insertAt+1:], candidates[insertAt:])
+	candidates[insertAt] = candidate
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+	return candidates
 }
 
 type matchingRuntime struct {
@@ -659,8 +1019,11 @@ func newChecklistIndex(checklist Checklist) checklistIndex {
 }
 
 func scoreChecklist(normalizedQuery string, queryTokens []string, checklist Checklist, runtime matchingRuntime) float64 {
+	return scoreIndexedChecklist(normalizedQuery, queryTokens, newChecklistIndex(checklist), runtime)
+}
+
+func scoreIndexedChecklist(normalizedQuery string, queryTokens []string, index checklistIndex, runtime matchingRuntime) float64 {
 	weights := runtime.config.Weights
-	index := newChecklistIndex(checklist)
 
 	total := 0.0
 	for _, token := range queryTokens {
@@ -923,4 +1286,9 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func (s *server) writeError(w http.ResponseWriter, status int, message string) {
+	s.metrics.errors.Add(1)
+	writeError(w, status, message)
 }

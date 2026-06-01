@@ -61,8 +61,10 @@ Ship the whole `Release\` folder or wrap it in an installer. It contains the
 Flutter app files plus `rag_sidecar.exe`.
 
 The current RAG path is fully local: Flutter sends the active handbook package
-to the sidecar, the sidecar retrieves the best runbooks, then returns an answer
-with citations. No cloud LLM key is required for this local answer mode.
+to the sidecar once, the sidecar validates it and builds an in-memory index,
+then later requests send only the query plus the returned content version. The
+sidecar retrieves the best runbooks and returns an answer with citations. No
+cloud LLM key is required for this local answer mode.
 
 To enable an OpenAI-compatible LLM provider, configure these environment
 variables before starting the app:
@@ -78,3 +80,18 @@ the deterministic local answer.
 
 The built-in handbook package lives at
 `mobile/assets/content/default_bundle.json`.
+
+## k6 Sidecar Load Test
+
+Start the sidecar on a fixed port, then run the reusable k6 script:
+
+```powershell
+cd sidecar/rag
+go run . --port=18080
+
+cd ../..
+k6 run -e TARGET=http://127.0.0.1:18080 -e BUNDLE_MULTIPLIER=100 loadtest/devqrh-sidecar.k6.js
+```
+
+Use `QUERY_MODE=legacy` to compare the old request shape that sends the full
+handbook package on every query.
