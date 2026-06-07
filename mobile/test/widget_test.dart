@@ -351,6 +351,106 @@ void main() {
     expect(answer.candidates, isNotEmpty);
   });
 
+  test('parses schema v2 runbook metadata and risk-grouped steps', () {
+    final bootstrap = ContentBootstrap.fromJson({
+      'manifest': {
+        'schemaVersion': 2,
+        'packageId': 'devqrh.test',
+        'name': 'Test runbooks',
+        'version': '20260608',
+        'runbookCount': 1,
+        'generatedAt': 1,
+        'team': 'platform',
+      },
+      'matchingConfig': {
+        'partialMinLength': 3,
+        'synonymGroups': [],
+        'weights': {},
+      },
+      'checklists': [
+        {
+          'id': 'redis_latency',
+          'title': 'Redis Latency',
+          'summary': 'Redis calls are slow and request latency is rising.',
+          'severity': 'p2',
+          'systems': ['redis', 'backend-service'],
+          'signals': ['redis p95 latency high'],
+          'owner': 'cache team',
+          'escalation': 'Escalate to cache team.',
+          'lastReviewedAt': '2026-06-08',
+          'safeSteps': [
+            {'step': 1, 'action': 'check redis latency', 'risk': 'safe'},
+          ],
+          'dangerSteps': [
+            {'step': 2, 'action': 'restart redis node', 'risk': 'danger'},
+          ],
+          'commands': [
+            {
+              'id': 'redis-cli',
+              'title': 'Latency command',
+              'command': 'redis-cli --latency',
+              'step': 1,
+              'risk': 'safe',
+            },
+          ],
+        },
+      ],
+    });
+
+    final checklist = bootstrap.checklists.single;
+
+    expect(bootstrap.manifest.schemaVersion, 2);
+    expect(bootstrap.manifest.packageId, 'devqrh.test');
+    expect(bootstrap.manifest.checklistCount, 1);
+    expect(checklist.severity, 'p2');
+    expect(checklist.systems, contains('redis'));
+    expect(checklist.immediateActions.single.action, 'check redis latency');
+    expect(checklist.safeSteps.single.risk, StepRisk.safe);
+    expect(checklist.dangerSteps.single.risk, StepRisk.danger);
+    expect(checklist.commands.single.command, 'redis-cli --latency');
+  });
+
+  test(
+    'imported packages include validation warnings for weak metadata',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repository = LookupRepository(FakeLocalStore());
+
+      final result = await repository.importPackage(
+        jsonEncode({
+          'manifest': {
+            'schemaVersion': 2,
+            'version': '20260608',
+            'checklistCount': 1,
+            'generatedAt': 1,
+          },
+          'matchingConfig': {
+            'partialMinLength': 3,
+            'synonymGroups': [],
+            'weights': {},
+          },
+          'checklists': [
+            {
+              'id': 'thin_runbook',
+              'title': 'Thin Runbook',
+              'keywords': ['thin'],
+              'symptoms': ['weak metadata'],
+              'immediateActions': [
+                {'step': 1, 'action': 'inspect signal'},
+              ],
+              'decisionTree': [],
+              'rootCause': [],
+              'longTermFix': [],
+            },
+          ],
+        }),
+      );
+
+      expect(result.bootstrap, isNotNull);
+      expect(result.validationReport.warnings, isNotEmpty);
+    },
+  );
+
   test('builds saved runbook subtitle with keyword and symptom fallback', () {
     final keywordFirst = Checklist(
       id: 'cpu_100',

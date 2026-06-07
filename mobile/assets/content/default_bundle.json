@@ -1,8 +1,16 @@
 {
   "manifest": {
+    "schemaVersion": 2,
+    "packageId": "devqrh.default.oncall",
+    "name": "DevQRH Default On-Call Runbooks",
     "version": "20260415",
     "checklistCount": 4,
-    "generatedAt": 1776124800000
+    "runbookCount": 4,
+    "generatedAt": 1776124800000,
+    "team": "platform",
+    "sourceRevision": "seed",
+    "defaultLocale": "en-US",
+    "minAppVersion": "0.1.0"
   },
   "matchingConfig": {
     "partialMinLength": 3,
@@ -39,6 +47,10 @@
     {
       "id": "cpu_100",
       "title": "CPU 100%",
+      "summary": "Use this runbook when one service instance or host is CPU saturated and requests are slowing down.",
+      "severity": "p2",
+      "systems": ["linux", "jvm", "backend-service"],
+      "tags": ["cpu", "saturation", "latency"],
       "keywords": [
         "cpu",
         "load",
@@ -53,21 +65,53 @@
         "slow response",
         "service slow"
       ],
+      "signals": [
+        "CPU usage above 90%",
+        "run queue increasing",
+        "p95 latency rising"
+      ],
+      "impact": "Requests may queue or time out while the overloaded process consumes CPU.",
+      "owner": "backend platform",
+      "escalation": "Escalate to the owning service team if CPU remains above 90% for more than 10 minutes or customer errors rise.",
+      "lastReviewedAt": "2026-04-15",
+      "reviewIntervalDays": 180,
+      "prerequisites": ["host shell access", "process id", "service dashboard"],
+      "safeSteps": [
+        { "step": 1, "action": "Check host load and top CPU processes with top.", "risk": "safe" },
+        { "step": 2, "action": "Inspect per-thread CPU with top -Hp {pid}.", "risk": "safe" },
+        { "step": 3, "action": "Capture a thread dump with jstack {pid}.", "risk": "safe" }
+      ],
+      "cautionSteps": [
+        { "step": 4, "action": "Compare traffic and deployment changes before deciding whether this is capacity or a code hot path.", "risk": "caution" }
+      ],
+      "dangerSteps": [
+        { "step": 5, "action": "Restart the service only after confirming redundancy and active traffic drain behavior.", "risk": "danger" }
+      ],
+      "commands": [
+        { "id": "cpu-top", "title": "Top processes", "command": "top", "step": 1, "risk": "safe" },
+        { "id": "cpu-threads", "title": "Thread CPU", "command": "top -Hp {pid}", "step": 2, "risk": "safe" },
+        { "id": "cpu-jstack", "title": "Thread dump", "command": "jstack {pid}", "step": 3, "risk": "safe" }
+      ],
       "immediateActions": [
-        { "step": 1, "action": "top" },
-        { "step": 2, "action": "top -Hp {pid}" },
-        { "step": 3, "action": "jstack {pid}" }
+        { "step": 1, "action": "top", "risk": "safe" },
+        { "step": 2, "action": "top -Hp {pid}", "risk": "safe" },
+        { "step": 3, "action": "jstack {pid}", "risk": "safe" }
       ],
       "decisionTree": [
         { "condition": "infinite loop", "action": "restart service" },
         { "condition": "high GC", "action": "analyze heap dump" }
       ],
       "rootCause": ["bad code", "traffic spike"],
-      "longTermFix": ["optimize hot path", "add caching"]
+      "longTermFix": ["optimize hot path", "add caching"],
+      "relatedRunbooks": ["memory_leak", "io_bottleneck"]
     },
     {
       "id": "mysql_slow",
       "title": "MySQL Slow Query",
+      "summary": "Use this runbook when API latency or database alerts point to slow SQL, lock waits, or inefficient query plans.",
+      "severity": "p2",
+      "systems": ["mysql", "database", "backend-service"],
+      "tags": ["mysql", "sql", "latency"],
       "keywords": ["mysql", "db", "slow query", "latency", "timeout", "sql"],
       "symptoms": [
         "db slow",
@@ -75,24 +119,53 @@
         "service slow",
         "slow response"
       ],
+      "signals": [
+        "slow query count increasing",
+        "lock wait time rising",
+        "database CPU or IO high"
+      ],
+      "impact": "Endpoints depending on the affected query may become slow or time out.",
+      "owner": "database platform",
+      "escalation": "Escalate to DBA and owning service team when lock waits or p95 latency keep rising after safe inspection.",
+      "lastReviewedAt": "2026-04-15",
+      "reviewIntervalDays": 180,
+      "prerequisites": ["read-only database session", "slow query sample", "service dashboard"],
+      "safeSteps": [
+        { "step": 1, "action": "Inspect currently running queries with show full processlist.", "risk": "safe" },
+        { "step": 2, "action": "Confirm slow query logging status.", "risk": "safe" },
+        { "step": 3, "action": "Run explain analyze only against a known representative SQL statement.", "risk": "safe" }
+      ],
+      "cautionSteps": [
+        { "step": 4, "action": "Avoid running expensive explain plans on production until query shape and limits are understood.", "risk": "caution" }
+      ],
+      "dangerSteps": [
+        { "step": 5, "action": "Killing blocking sessions can roll back work; confirm owner and customer impact first.", "risk": "danger" }
+      ],
+      "commands": [
+        { "id": "mysql-processlist", "title": "Process list", "command": "show full processlist;", "step": 1, "risk": "safe" },
+        { "id": "mysql-slow-log", "title": "Slow log status", "command": "show variables like 'slow_query_log';", "step": 2, "risk": "safe" },
+        { "id": "mysql-explain", "title": "Query plan", "command": "explain analyze {sql}", "step": 3, "risk": "safe" }
+      ],
       "immediateActions": [
-        { "step": 1, "action": "show full processlist;" },
-        {
-          "step": 2,
-          "action": "show variables like 'slow_query_log';"
-        },
-        { "step": 3, "action": "explain analyze {sql}" }
+        { "step": 1, "action": "show full processlist;", "risk": "safe" },
+        { "step": 2, "action": "show variables like 'slow_query_log';", "risk": "safe" },
+        { "step": 3, "action": "explain analyze {sql}", "risk": "safe" }
       ],
       "decisionTree": [
         { "condition": "full table scan", "action": "add or fix index" },
         { "condition": "lock wait", "action": "find blocking transaction" }
       ],
       "rootCause": ["missing index", "large result set"],
-      "longTermFix": ["add slow SQL review", "tune query and schema"]
+      "longTermFix": ["add slow SQL review", "tune query and schema"],
+      "relatedRunbooks": ["io_bottleneck"]
     },
     {
       "id": "memory_leak",
       "title": "Memory Leak",
+      "summary": "Use this runbook when heap, GC, or OOM signals suggest a process is retaining memory over time.",
+      "severity": "p2",
+      "systems": ["jvm", "backend-service", "memory"],
+      "tags": ["memory", "heap", "oom"],
       "keywords": ["memory", "heap", "gc", "oom", "leak"],
       "symptoms": [
         "heap keeps growing",
@@ -100,24 +173,53 @@
         "OOM risk",
         "service slow"
       ],
+      "signals": [
+        "old generation keeps rising",
+        "full GC frequency increasing",
+        "container memory near limit"
+      ],
+      "impact": "The service may slow down, restart unexpectedly, or be killed by the runtime/container.",
+      "owner": "backend platform",
+      "escalation": "Escalate to the owning service team if old generation keeps rising or OOM restarts begin.",
+      "lastReviewedAt": "2026-04-15",
+      "reviewIntervalDays": 180,
+      "prerequisites": ["process id", "JDK tools", "heap dashboard"],
+      "safeSteps": [
+        { "step": 1, "action": "Check GC utilization with jstat -gcutil {pid} 1000.", "risk": "safe" },
+        { "step": 2, "action": "Inspect live object histogram with jmap -histo:live {pid}.", "risk": "safe" },
+        { "step": 3, "action": "Record heap trend and recent deployment changes.", "risk": "safe" }
+      ],
+      "cautionSteps": [
+        { "step": 4, "action": "Heap dumps can be large and sensitive; confirm disk space and handling policy first.", "risk": "caution" }
+      ],
+      "dangerSteps": [
+        { "step": 5, "action": "Restarting may hide evidence; capture enough diagnostics before restart unless customer impact is severe.", "risk": "danger" }
+      ],
+      "commands": [
+        { "id": "mem-jstat", "title": "GC utilization", "command": "jstat -gcutil {pid} 1000", "step": 1, "risk": "safe" },
+        { "id": "mem-histo", "title": "Live histogram", "command": "jmap -histo:live {pid}", "step": 2, "risk": "safe" },
+        { "id": "mem-dump", "title": "Heap dump", "command": "jmap -dump:live,format=b,file={file}.hprof {pid}", "step": 4, "risk": "caution" }
+      ],
       "immediateActions": [
-        { "step": 1, "action": "jstat -gcutil {pid} 1000" },
-        { "step": 2, "action": "jmap -histo:live {pid}" },
-        { "step": 3, "action": "capture heap dump" }
+        { "step": 1, "action": "jstat -gcutil {pid} 1000", "risk": "safe" },
+        { "step": 2, "action": "jmap -histo:live {pid}", "risk": "safe" },
+        { "step": 3, "action": "capture heap dump", "risk": "caution" }
       ],
       "decisionTree": [
-        {
-          "condition": "old gen rising",
-          "action": "analyze retained objects"
-        },
+        { "condition": "old gen rising", "action": "analyze retained objects" },
         { "condition": "metaspace high", "action": "check classloader leak" }
       ],
       "rootCause": ["object retention", "cache not evicted"],
-      "longTermFix": ["add leak tests", "cap cache size"]
+      "longTermFix": ["add leak tests", "cap cache size"],
+      "relatedRunbooks": ["cpu_100"]
     },
     {
       "id": "io_bottleneck",
       "title": "IO Bottleneck",
+      "summary": "Use this runbook when disk utilization, iowait, or storage latency is causing service delay.",
+      "severity": "p2",
+      "systems": ["linux", "storage", "backend-service"],
+      "tags": ["disk", "io", "latency"],
       "keywords": [
         "io",
         "disk",
@@ -132,23 +234,45 @@
         "service lag",
         "response delay"
       ],
+      "signals": [
+        "await latency high",
+        "device utilization near 100%",
+        "write queue increasing"
+      ],
+      "impact": "Requests depending on disk or storage may stall, queue, or time out.",
+      "owner": "infrastructure platform",
+      "escalation": "Escalate to infrastructure or storage owner if one device remains saturated after identifying the writer.",
+      "lastReviewedAt": "2026-04-15",
+      "reviewIntervalDays": 180,
+      "prerequisites": ["host shell access", "process id", "storage dashboard"],
+      "safeSteps": [
+        { "step": 1, "action": "Inspect device latency and utilization with iostat -xz 1 3.", "risk": "safe" },
+        { "step": 2, "action": "Find processes doing disk IO with pidstat -d 1.", "risk": "safe" },
+        { "step": 3, "action": "Inspect open files for the suspected process with lsof -p {pid}.", "risk": "safe" }
+      ],
+      "cautionSteps": [
+        { "step": 4, "action": "Throttling writes can protect the service but may delay background work; confirm workload role first.", "risk": "caution" }
+      ],
+      "dangerSteps": [
+        { "step": 5, "action": "Moving load or restarting writers may drop in-flight work; coordinate with the service owner first.", "risk": "danger" }
+      ],
+      "commands": [
+        { "id": "io-iostat", "title": "Disk stats", "command": "iostat -xz 1 3", "step": 1, "risk": "safe" },
+        { "id": "io-pidstat", "title": "Process IO", "command": "pidstat -d 1", "step": 2, "risk": "safe" },
+        { "id": "io-lsof", "title": "Open files", "command": "lsof -p {pid}", "step": 3, "risk": "safe" }
+      ],
       "immediateActions": [
-        { "step": 1, "action": "iostat -xz 1 3" },
-        { "step": 2, "action": "pidstat -d 1" },
-        { "step": 3, "action": "lsof -p {pid}" }
+        { "step": 1, "action": "iostat -xz 1 3", "risk": "safe" },
+        { "step": 2, "action": "pidstat -d 1", "risk": "safe" },
+        { "step": 3, "action": "lsof -p {pid}", "risk": "safe" }
       ],
       "decisionTree": [
-        {
-          "condition": "device util near 100%",
-          "action": "move load or throttle writes"
-        },
-        {
-          "condition": "single process saturating disk",
-          "action": "inspect hot files and write path"
-        }
+        { "condition": "device util near 100%", "action": "move load or throttle writes" },
+        { "condition": "single process saturating disk", "action": "inspect hot files and write path" }
       ],
       "rootCause": ["disk contention", "large sync writes"],
-      "longTermFix": ["isolate noisy workload", "optimize write pattern"]
+      "longTermFix": ["isolate noisy workload", "optimize write pattern"],
+      "relatedRunbooks": ["mysql_slow", "cpu_100"]
     }
   ]
 }

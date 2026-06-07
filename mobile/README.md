@@ -19,9 +19,15 @@ Import a JSON file with this shape:
 ```json
 {
   "manifest": {
+    "schemaVersion": 2,
+    "packageId": "devqrh.default.oncall",
+    "name": "DevQRH Default On-Call Runbooks",
     "version": "20260415",
     "checklistCount": 4,
-    "generatedAt": 1776124800000
+    "runbookCount": 4,
+    "generatedAt": 1776124800000,
+    "team": "platform",
+    "defaultLocale": "en-US"
   },
   "matchingConfig": {
     "partialMinLength": 3,
@@ -51,16 +57,44 @@ Import a JSON file with this shape:
     {
       "id": "cpu_100",
       "title": "CPU 100%",
+      "summary": "Use this runbook when a service or host is CPU saturated.",
+      "severity": "p2",
+      "systems": ["linux", "jvm", "backend-service"],
+      "tags": ["cpu", "saturation"],
       "keywords": ["cpu"],
       "symptoms": ["high CPU"],
-      "immediateActions": [{"step": 1, "action": "top"}],
+      "signals": ["CPU usage above 90%"],
+      "owner": "backend platform",
+      "escalation": "Escalate to the owning service team if errors rise.",
+      "lastReviewedAt": "2026-04-15",
+      "reviewIntervalDays": 180,
+      "safeSteps": [{"step": 1, "action": "top", "risk": "safe"}],
+      "cautionSteps": [],
+      "dangerSteps": [],
+      "commands": [
+        {
+          "id": "cpu-top",
+          "title": "Top processes",
+          "command": "top",
+          "step": 1,
+          "risk": "safe"
+        }
+      ],
+      "immediateActions": [{"step": 1, "action": "top", "risk": "safe"}],
       "decisionTree": [{"condition": "high GC", "action": "analyze dump"}],
       "rootCause": ["bad code"],
-      "longTermFix": ["optimize hot path"]
+      "longTermFix": ["optimize hot path"],
+      "relatedRunbooks": []
     }
   ]
 }
 ```
+
+`schemaVersion: 2` packages can include on-call metadata such as severity,
+systems, owner/escalation, review freshness, risk-grouped steps, and copyable
+commands. Older packages with only `immediateActions` still import; missing
+operational metadata is treated as a validation warning rather than a fatal
+error.
 
 The built-in reference package lives at `assets/content/default_bundle.json`.
 

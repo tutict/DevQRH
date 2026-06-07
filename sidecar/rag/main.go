@@ -25,6 +25,7 @@ import (
 type ChecklistStep struct {
 	Step   int    `json:"step"`
 	Action string `json:"action"`
+	Risk   string `json:"risk,omitempty"`
 }
 
 type ChecklistBranch struct {
@@ -32,15 +33,39 @@ type ChecklistBranch struct {
 	Action    string `json:"action"`
 }
 
+type RunbookCommand struct {
+	ID      string `json:"id,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Command string `json:"command"`
+	Step    int    `json:"step,omitempty"`
+	Risk    string `json:"risk,omitempty"`
+}
+
 type Checklist struct {
 	ID               string            `json:"id"`
 	Title            string            `json:"title"`
 	Keywords         []string          `json:"keywords"`
+	Tags             []string          `json:"tags,omitempty"`
+	Summary          string            `json:"summary,omitempty"`
+	Severity         string            `json:"severity,omitempty"`
+	Systems          []string          `json:"systems,omitempty"`
 	Symptoms         []string          `json:"symptoms"`
+	Signals          []string          `json:"signals,omitempty"`
+	Impact           string            `json:"impact,omitempty"`
+	Owner            string            `json:"owner,omitempty"`
+	Escalation       string            `json:"escalation,omitempty"`
+	LastReviewedAt   string            `json:"lastReviewedAt,omitempty"`
+	ReviewInterval   int               `json:"reviewIntervalDays,omitempty"`
+	Prerequisites    []string          `json:"prerequisites,omitempty"`
 	ImmediateActions []ChecklistStep   `json:"immediateActions"`
+	SafeSteps        []ChecklistStep   `json:"safeSteps,omitempty"`
+	CautionSteps     []ChecklistStep   `json:"cautionSteps,omitempty"`
+	DangerSteps      []ChecklistStep   `json:"dangerSteps,omitempty"`
+	Commands         []RunbookCommand  `json:"commands,omitempty"`
 	DecisionTree     []ChecklistBranch `json:"decisionTree"`
 	RootCause        []string          `json:"rootCause"`
 	LongTermFix      []string          `json:"longTermFix"`
+	RelatedRunbooks  []string          `json:"relatedRunbooks,omitempty"`
 }
 
 type RankedChecklist struct {
@@ -62,9 +87,17 @@ type AgentNavigationResponse struct {
 }
 
 type ContentManifest struct {
+	SchemaVersion  int    `json:"schemaVersion,omitempty"`
+	PackageID      string `json:"packageId,omitempty"`
+	Name           string `json:"name,omitempty"`
 	Version        string `json:"version"`
 	ChecklistCount int    `json:"checklistCount"`
+	RunbookCount   int    `json:"runbookCount,omitempty"`
 	GeneratedAt    int64  `json:"generatedAt"`
+	Team           string `json:"team,omitempty"`
+	SourceRevision string `json:"sourceRevision,omitempty"`
+	DefaultLocale  string `json:"defaultLocale,omitempty"`
+	MinAppVersion  string `json:"minAppVersion,omitempty"`
 }
 
 type ContentBootstrap struct {
@@ -105,9 +138,20 @@ type contentSyncRequest struct {
 }
 
 type contentSyncResponse struct {
-	ContentVersion string `json:"contentVersion"`
-	ChecklistCount int    `json:"checklistCount"`
-	IndexedAt      int64  `json:"indexedAt"`
+	ContentVersion string           `json:"contentVersion"`
+	ChecklistCount int              `json:"checklistCount"`
+	IndexedAt      int64            `json:"indexedAt"`
+	Validation     ValidationReport `json:"validation"`
+}
+
+type ValidationIssue struct {
+	Path    string `json:"path"`
+	Message string `json:"message"`
+}
+
+type ValidationReport struct {
+	Errors   []ValidationIssue `json:"errors"`
+	Warnings []ValidationIssue `json:"warnings"`
 }
 
 type lookupRequest struct {
@@ -176,12 +220,13 @@ type contentStore struct {
 }
 
 type contentSnapshot struct {
-	version        string
-	manifest       ContentManifest
-	runtime        matchingRuntime
-	entries        []indexedChecklist
-	checklistCount int
-	indexedAt      time.Time
+	version          string
+	manifest         ContentManifest
+	runtime          matchingRuntime
+	entries          []indexedChecklist
+	checklistCount   int
+	indexedAt        time.Time
+	validationReport ValidationReport
 }
 
 type indexedChecklist struct {
@@ -222,8 +267,9 @@ func (store *contentStore) get(version string) (*contentSnapshot, bool) {
 }
 
 func newContentSnapshot(bootstrap ContentBootstrap) (*contentSnapshot, error) {
-	if err := validateBootstrap(bootstrap); err != nil {
-		return nil, err
+	report := validateBootstrap(bootstrap)
+	if report.hasErrors() {
+		return nil, validationError{report: report}
 	}
 
 	config := normalizeConfig(bootstrap.MatchingConfig)
@@ -237,36 +283,148 @@ func newContentSnapshot(bootstrap ContentBootstrap) (*contentSnapshot, error) {
 	}
 
 	return &contentSnapshot{
-		version:        contentVersion(bootstrap),
-		manifest:       bootstrap.Manifest,
-		runtime:        runtime,
-		entries:        entries,
-		checklistCount: len(entries),
-		indexedAt:      time.Now(),
+		version:          contentVersion(bootstrap),
+		manifest:         bootstrap.Manifest,
+		runtime:          runtime,
+		entries:          entries,
+		checklistCount:   len(entries),
+		indexedAt:        time.Now(),
+		validationReport: report,
 	}, nil
 }
 
-func validateBootstrap(bootstrap ContentBootstrap) error {
-	if len(bootstrap.Checklists) == 0 {
-		return fmt.Errorf("bootstrap must include at least one checklist")
+type validationError struct {
+	report ValidationReport
+}
+
+func (err validationError) Error() string {
+	if len(err.report.Errors) == 0 {
+		return "content validation failed"
 	}
-	if bootstrap.Manifest.ChecklistCount > 0 && bootstrap.Manifest.ChecklistCount != len(bootstrap.Checklists) {
-		return fmt.Errorf("manifest checklistCount %d does not match %d checklists", bootstrap.Manifest.ChecklistCount, len(bootstrap.Checklists))
+	return err.report.Errors[0].Message
+}
+
+func (report ValidationReport) hasErrors() bool {
+	return len(report.Errors) > 0
+}
+
+func validateBootstrap(bootstrap ContentBootstrap) ValidationReport {
+	report := ValidationReport{
+		Errors:   []ValidationIssue{},
+		Warnings: []ValidationIssue{},
+	}
+	if len(bootstrap.Checklists) == 0 {
+		report.addError("checklists", "bootstrap must include at least one checklist")
+		return report
+	}
+	checklistCount := bootstrap.Manifest.ChecklistCount
+	if checklistCount == 0 {
+		checklistCount = bootstrap.Manifest.RunbookCount
+	}
+	if bootstrap.Manifest.SchemaVersion < 0 || bootstrap.Manifest.SchemaVersion > 2 {
+		report.addError("manifest.schemaVersion", "unsupported content schema version")
+	}
+	if checklistCount > 0 && checklistCount != len(bootstrap.Checklists) {
+		report.addError(
+			"manifest.checklistCount",
+			fmt.Sprintf("manifest checklistCount %d does not match %d checklists", checklistCount, len(bootstrap.Checklists)),
+		)
 	}
 	seen := map[string]bool{}
 	for index, checklist := range bootstrap.Checklists {
+		path := fmt.Sprintf("checklists[%d]", index)
 		id := strings.TrimSpace(checklist.ID)
 		title := strings.TrimSpace(checklist.Title)
 		if id == "" || title == "" {
-			return fmt.Errorf("checklist %d must include non-empty id and title", index)
+			report.addError(path, "checklist must include non-empty id and title")
+			continue
 		}
 		normalizedID := strings.ToLower(id)
 		if seen[normalizedID] {
-			return fmt.Errorf("duplicate checklist id %q", id)
+			report.addError(path+".id", fmt.Sprintf("duplicate checklist id %q", id))
 		}
 		seen[normalizedID] = true
+		validateStepRisks(&report, path+".immediateActions", checklist.ImmediateActions)
+		validateStepRisks(&report, path+".safeSteps", checklist.SafeSteps)
+		validateStepRisks(&report, path+".cautionSteps", checklist.CautionSteps)
+		validateStepRisks(&report, path+".dangerSteps", checklist.DangerSteps)
+		validateCommandRisks(&report, path+".commands", checklist.Commands)
+		addRunbookWarnings(&report, path, checklist)
 	}
-	return nil
+	return report
+}
+
+func (report *ValidationReport) addError(path string, message string) {
+	report.Errors = append(report.Errors, ValidationIssue{Path: path, Message: message})
+}
+
+func (report *ValidationReport) addWarning(path string, message string) {
+	report.Warnings = append(report.Warnings, ValidationIssue{Path: path, Message: message})
+}
+
+func validateStepRisks(report *ValidationReport, path string, steps []ChecklistStep) {
+	for index, step := range steps {
+		if !validRisk(step.Risk) {
+			report.addError(fmt.Sprintf("%s[%d].risk", path, index), fmt.Sprintf("invalid step risk %q", step.Risk))
+		}
+	}
+}
+
+func validateCommandRisks(report *ValidationReport, path string, commands []RunbookCommand) {
+	for index, command := range commands {
+		if strings.TrimSpace(command.Command) == "" {
+			report.addWarning(fmt.Sprintf("%s[%d].command", path, index), "command should include copyable content")
+		}
+		if !validRisk(command.Risk) {
+			report.addError(fmt.Sprintf("%s[%d].risk", path, index), fmt.Sprintf("invalid command risk %q", command.Risk))
+		}
+		if command.Step <= 0 {
+			report.addWarning(fmt.Sprintf("%s[%d].step", path, index), "command should be linked to a runbook step")
+		}
+	}
+}
+
+func validRisk(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "safe", "caution", "danger":
+		return true
+	default:
+		return false
+	}
+}
+
+func addRunbookWarnings(report *ValidationReport, path string, checklist Checklist) {
+	if strings.TrimSpace(checklist.Owner) == "" || strings.TrimSpace(checklist.Escalation) == "" {
+		report.addWarning(path, "runbook should include owner and escalation text")
+	}
+	if strings.TrimSpace(checklist.Severity) == "" {
+		report.addWarning(path+".severity", "runbook should include severity")
+	}
+	if len(checklist.Systems) == 0 {
+		report.addWarning(path+".systems", "runbook should include affected systems")
+	}
+	if strings.TrimSpace(checklist.LastReviewedAt) == "" {
+		report.addWarning(path+".lastReviewedAt", "runbook should include lastReviewedAt")
+	} else if checklist.ReviewInterval > 0 && isStaleReview(checklist.LastReviewedAt, checklist.ReviewInterval) {
+		report.addWarning(path+".lastReviewedAt", "runbook review date is stale")
+	}
+	if len(checklist.SafeSteps) == 0 && len(checklist.ImmediateActions) == 0 {
+		report.addWarning(path+".safeSteps", "runbook should include safe first-response steps")
+	}
+	if len(checklist.DangerSteps) > 0 && len(checklist.CautionSteps) == 0 {
+		report.addWarning(path+".dangerSteps", "danger steps should be preceded by caution guidance")
+	}
+	if len(strings.TrimSpace(checklist.Summary)) < 24 {
+		report.addWarning(path+".summary", "runbook summary is missing or too short")
+	}
+}
+
+func isStaleReview(value string, intervalDays int) bool {
+	reviewedAt, err := time.Parse("2006-01-02", strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	return time.Since(reviewedAt) > time.Duration(intervalDays)*24*time.Hour
 }
 
 func contentVersion(bootstrap ContentBootstrap) string {
@@ -372,6 +530,11 @@ func (s *server) contentSync(w http.ResponseWriter, r *http.Request) {
 
 	snapshot, err := s.store.sync(request.Bootstrap)
 	if err != nil {
+		var validation validationError
+		if errors.As(err, &validation) {
+			s.writeValidationError(w, http.StatusBadRequest, validation.report)
+			return
+		}
 		s.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -382,6 +545,7 @@ func (s *server) contentSync(w http.ResponseWriter, r *http.Request) {
 		ContentVersion: snapshot.version,
 		ChecklistCount: snapshot.checklistCount,
 		IndexedAt:      snapshot.indexedAt.UnixMilli(),
+		Validation:     snapshot.validationReport,
 	})
 }
 
@@ -421,7 +585,7 @@ func (s *server) agentNavigate(w http.ResponseWriter, r *http.Request) {
 	clarifiers := make([]string, 0, 3)
 	query := strings.TrimSpace(request.Query)
 	for _, candidate := range lookup.Candidates {
-		for _, symptom := range candidate.Checklist.Symptoms {
+		for _, symptom := range appendStrings(candidate.Checklist.Symptoms, candidate.Checklist.Signals) {
 			addClarifier(&clarifiers, query, symptom)
 			if len(clarifiers) >= 3 {
 				break
@@ -554,9 +718,9 @@ func buildLocalRAGAnswer(query string, candidates []RankedChecklist) string {
 	if len(best.Symptoms) > 0 {
 		fmt.Fprintf(&builder, "Matched signals: %s.\n", strings.Join(takeStrings(best.Symptoms, 3), ", "))
 	}
-	if len(best.ImmediateActions) > 0 {
+	if steps := firstResponseSteps(best); len(steps) > 0 {
 		builder.WriteString("Immediate checks:\n")
-		for _, step := range takeSteps(best.ImmediateActions, 3) {
+		for _, step := range takeSteps(steps, 3) {
 			fmt.Fprintf(&builder, "%d. %s\n", step.Step, step.Action)
 		}
 	}
@@ -986,9 +1150,20 @@ type checklistIndex struct {
 func newChecklistIndex(checklist Checklist) checklistIndex {
 	idTokens := tokenSet(checklist.ID)
 	titleTokens := tokenSet(checklist.Title)
-	keywordTokens := tokenSetAll(checklist.Keywords)
-	symptomTokens := tokenSetAll(checklist.Symptoms)
+	keywordTokens := tokenSetAll(appendStrings(checklist.Keywords, checklist.Tags))
+	symptomTokens := tokenSetAll(appendStrings(checklist.Symptoms, checklist.Signals))
 	contextTokens := mergeSets(
+		tokenSet(checklist.Summary),
+		tokenSet(checklist.Severity),
+		tokenSetAll(checklist.Systems),
+		tokenSet(checklist.Impact),
+		tokenSet(checklist.Owner),
+		tokenSet(checklist.Escalation),
+		tokenSetAll(checklist.Prerequisites),
+		tokenSetAll(stepActions(checklist.SafeSteps)),
+		tokenSetAll(stepActions(checklist.CautionSteps)),
+		tokenSetAll(stepActions(checklist.DangerSteps)),
+		tokenSetAll(commandTexts(checklist.Commands)),
 		tokenSetAll(checklist.RootCause),
 		tokenSetAll(checklist.LongTermFix),
 	)
@@ -998,9 +1173,23 @@ func newChecklistIndex(checklist Checklist) checklistIndex {
 	documentParts := []string{
 		checklist.ID,
 		checklist.Title,
+		checklist.Summary,
+		checklist.Severity,
+		checklist.Impact,
+		checklist.Owner,
+		checklist.Escalation,
 	}
 	documentParts = append(documentParts, checklist.Keywords...)
+	documentParts = append(documentParts, checklist.Tags...)
+	documentParts = append(documentParts, checklist.Systems...)
 	documentParts = append(documentParts, checklist.Symptoms...)
+	documentParts = append(documentParts, checklist.Signals...)
+	documentParts = append(documentParts, checklist.Prerequisites...)
+	documentParts = append(documentParts, stepActions(checklist.ImmediateActions)...)
+	documentParts = append(documentParts, stepActions(checklist.SafeSteps)...)
+	documentParts = append(documentParts, stepActions(checklist.CautionSteps)...)
+	documentParts = append(documentParts, stepActions(checklist.DangerSteps)...)
+	documentParts = append(documentParts, commandTexts(checklist.Commands)...)
 	documentParts = append(documentParts, checklist.RootCause...)
 	documentParts = append(documentParts, checklist.LongTermFix...)
 
@@ -1146,11 +1335,41 @@ func takeSteps(values []ChecklistStep, limit int) []ChecklistStep {
 	return values[:limit]
 }
 
+func firstResponseSteps(checklist Checklist) []ChecklistStep {
+	if len(checklist.SafeSteps) > 0 {
+		return checklist.SafeSteps
+	}
+	return checklist.ImmediateActions
+}
+
 func takeBranches(values []ChecklistBranch, limit int) []ChecklistBranch {
 	if len(values) <= limit {
 		return values
 	}
 	return values[:limit]
+}
+
+func appendStrings(left []string, right []string) []string {
+	combined := make([]string, 0, len(left)+len(right))
+	combined = append(combined, left...)
+	combined = append(combined, right...)
+	return combined
+}
+
+func stepActions(steps []ChecklistStep) []string {
+	actions := make([]string, 0, len(steps))
+	for _, step := range steps {
+		actions = append(actions, step.Action)
+	}
+	return actions
+}
+
+func commandTexts(commands []RunbookCommand) []string {
+	values := make([]string, 0, len(commands)*2)
+	for _, command := range commands {
+		values = append(values, command.Title, command.Command)
+	}
+	return values
 }
 
 var tokenSplitter = regexp.MustCompile(`[^a-z0-9]+`)
@@ -1291,4 +1510,18 @@ func writeError(w http.ResponseWriter, status int, message string) {
 func (s *server) writeError(w http.ResponseWriter, status int, message string) {
 	s.metrics.errors.Add(1)
 	writeError(w, status, message)
+}
+
+func (s *server) writeValidationError(w http.ResponseWriter, status int, report ValidationReport) {
+	s.metrics.errors.Add(1)
+	message := "content validation failed"
+	if len(report.Errors) > 0 {
+		message = report.Errors[0].Message
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error":      message,
+		"validation": report,
+	})
 }

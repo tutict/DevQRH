@@ -72,12 +72,17 @@ class LookupRepository {
         return ContentSyncResult(
           bootstrap: imported,
           usesImportedContent: true,
+          validationReport: imported.validationReport,
         );
       }
 
       final bundled = await loadBundledBootstrap();
       _preferredBootstrapCache = bundled;
-      return ContentSyncResult(bootstrap: bundled, usesImportedContent: false);
+      return ContentSyncResult(
+        bootstrap: bundled,
+        usesImportedContent: false,
+        validationReport: bundled.validationReport,
+      );
     } catch (error) {
       await _localStore.clearContentCache();
       try {
@@ -88,6 +93,7 @@ class LookupRepository {
           usesImportedContent: false,
           errorMessage:
               'Imported package could not be loaded. Using built-in library.',
+          validationReport: bundled.validationReport,
         );
       } catch (_) {
         return ContentSyncResult(
@@ -108,7 +114,11 @@ class LookupRepository {
         checklists: bootstrap.checklists.map((item) => item.toJson()).toList(),
       );
       _preferredBootstrapCache = bootstrap;
-      return ContentSyncResult(bootstrap: bootstrap, usesImportedContent: true);
+      return ContentSyncResult(
+        bootstrap: bootstrap,
+        usesImportedContent: true,
+        validationReport: bootstrap.validationReport,
+      );
     } catch (error) {
       return ContentSyncResult(
         bootstrap: null,
@@ -122,7 +132,11 @@ class LookupRepository {
     await _localStore.clearContentCache();
     final bundled = await loadBundledBootstrap();
     _preferredBootstrapCache = bundled;
-    return ContentSyncResult(bootstrap: bundled, usesImportedContent: false);
+    return ContentSyncResult(
+      bootstrap: bundled,
+      usesImportedContent: false,
+      validationReport: bundled.validationReport,
+    );
   }
 
   Future<ContentBootstrap> loadBundledBootstrap() async {
@@ -142,11 +156,16 @@ class LookupRepository {
     if (checklists.isEmpty) {
       return null;
     }
+    final validationReport = _validateBootstrap(manifest, checklists);
+    if (validationReport.hasErrors) {
+      throw FormatException(validationReport.errors.first.message);
+    }
 
     return ContentBootstrap(
       manifest: manifest,
       matchingConfig: matchingConfig,
       checklists: checklists,
+      validationReport: validationReport,
     );
   }
 
@@ -435,7 +454,10 @@ class LookupRepository {
       json['matchingConfig'],
       'matchingConfig',
     );
-    final checklistJson = _requireJsonList(json['checklists'], 'checklists');
+    final checklistJson = _requireJsonList(
+      json['checklists'] ?? json['runbooks'],
+      'checklists',
+    );
     if (checklistJson.isEmpty) {
       throw const FormatException(
         'Content package must include at least one checklist.',
@@ -460,6 +482,9 @@ class LookupRepository {
         ? ContentManifest.fromJson(manifestJson.cast<String, dynamic>())
         : null;
     final manifest = ContentManifest(
+      schemaVersion: parsedManifest?.schemaVersion ?? 1,
+      packageId: parsedManifest?.packageId ?? '',
+      name: parsedManifest?.name ?? '',
       version: (parsedManifest?.version ?? '').trim().isNotEmpty
           ? parsedManifest!.version
           : _generatedVersion(now),
@@ -470,12 +495,21 @@ class LookupRepository {
       generatedAt: parsedManifest == null || parsedManifest.generatedAt <= 0
           ? (fallbackGeneratedAt ?? now)
           : parsedManifest.generatedAt,
+      team: parsedManifest?.team ?? '',
+      sourceRevision: parsedManifest?.sourceRevision ?? '',
+      defaultLocale: parsedManifest?.defaultLocale ?? '',
+      minAppVersion: parsedManifest?.minAppVersion ?? '',
     );
+    final validationReport = _validateBootstrap(manifest, checklists);
+    if (validationReport.hasErrors) {
+      throw FormatException(validationReport.errors.first.message);
+    }
 
     return ContentBootstrap(
       manifest: manifest,
       matchingConfig: MatchingConfig.fromJson(matchingConfigJson),
       checklists: checklists,
+      validationReport: validationReport,
     );
   }
 
@@ -505,6 +539,111 @@ class LookupRepository {
     String twoDigits(int value) => value.toString().padLeft(2, '0');
 
     return '${date.year}${twoDigits(date.month)}${twoDigits(date.day)}-$milliseconds';
+  }
+
+  ContentValidationReport _validateBootstrap(
+    ContentManifest manifest,
+    List<Checklist> checklists,
+  ) {
+    final errors = <ContentValidationIssue>[];
+    final warnings = <ContentValidationIssue>[];
+
+    if (manifest.schemaVersion <= 0 || manifest.schemaVersion > 2) {
+      errors.add(
+        ContentValidationIssue(
+          path: 'manifest.schemaVersion',
+          message: 'Unsupported content schema version.',
+        ),
+      );
+    }
+    if (manifest.checklistCount > 0 &&
+        manifest.checklistCount != checklists.length) {
+      errors.add(
+        ContentValidationIssue(
+          path: 'manifest.checklistCount',
+          message: 'Manifest checklist count does not match package content.',
+        ),
+      );
+    }
+
+    final seen = <String>{};
+    for (var index = 0; index < checklists.length; index++) {
+      final checklist = checklists[index];
+      final path = 'checklists[$index]';
+      final id = checklist.id.trim();
+      if (id.isEmpty || checklist.title.trim().isEmpty) {
+        errors.add(
+          ContentValidationIssue(
+            path: path,
+            message:
+                'Content package checklists must include non-empty id and title values.',
+          ),
+        );
+        continue;
+      }
+      final normalizedId = id.toLowerCase();
+      if (seen.contains(normalizedId)) {
+        errors.add(
+          ContentValidationIssue(
+            path: '$path.id',
+            message: 'Duplicate checklist id "$id".',
+          ),
+        );
+      }
+      seen.add(normalizedId);
+
+      if (checklist.owner.trim().isEmpty ||
+          checklist.escalation.trim().isEmpty) {
+        warnings.add(
+          ContentValidationIssue(
+            path: path,
+            message: 'Runbook should include owner and escalation text.',
+          ),
+        );
+      }
+      if (checklist.systems.isEmpty) {
+        warnings.add(
+          ContentValidationIssue(
+            path: '$path.systems',
+            message: 'Runbook should include affected systems.',
+          ),
+        );
+      }
+      if (checklist.lastReviewedAt.trim().isEmpty) {
+        warnings.add(
+          ContentValidationIssue(
+            path: '$path.lastReviewedAt',
+            message: 'Runbook should include lastReviewedAt.',
+          ),
+        );
+      }
+      if (checklist.safeSteps.isEmpty && checklist.immediateActions.isEmpty) {
+        warnings.add(
+          ContentValidationIssue(
+            path: '$path.safeSteps',
+            message: 'Runbook should include safe first-response steps.',
+          ),
+        );
+      }
+      if (checklist.dangerSteps.isNotEmpty && checklist.cautionSteps.isEmpty) {
+        warnings.add(
+          ContentValidationIssue(
+            path: '$path.dangerSteps',
+            message: 'Danger steps should be preceded by caution guidance.',
+          ),
+        );
+      }
+      if (checklist.summary.trim().length < 24) {
+        warnings.add(
+          ContentValidationIssue(
+            path: '$path.summary',
+            message: 'Runbook summary is missing or too short.',
+          ),
+        );
+      }
+    }
+
+    return ContentValidationReport(errors: errors, warnings: warnings);
   }
 
   MatchingConfig _defaultMatchingConfig() {
@@ -547,9 +686,11 @@ class ContentSyncResult {
     required this.bootstrap,
     required this.usesImportedContent,
     this.errorMessage,
+    this.validationReport = ContentValidationReport.empty,
   });
 
   final ContentBootstrap? bootstrap;
   final bool usesImportedContent;
   final String? errorMessage;
+  final ContentValidationReport validationReport;
 }

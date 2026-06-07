@@ -17,6 +17,13 @@ package, builds an in-memory retrieval index, and returns a `contentVersion`.
 Subsequent `/lookup`, `/agent/navigate`, and `/rag/answer` calls should send
 only `query` plus `contentVersion`.
 
+Schema v2 packages can include on-call metadata such as `severity`, `systems`,
+`signals`, `owner`, `escalation`, `lastReviewedAt`, risk-grouped steps, and
+copyable `commands`. `/content/sync` returns a `validation` report. Validation
+errors block indexing with HTTP 400; warnings allow indexing and identify
+content quality issues such as missing owners, stale reviews, or unlinked
+commands.
+
 The query endpoints still accept the older `{ query, bootstrap }` shape as a
 compatibility fallback, but that path is slower because it has to decode and
 index the package for that request.

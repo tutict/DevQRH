@@ -42,6 +42,9 @@ func TestContentSyncAndVersionedLookup(t *testing.T) {
 	if syncResponse.ChecklistCount != 2 {
 		t.Fatalf("unexpected checklist count: %d", syncResponse.ChecklistCount)
 	}
+	if len(syncResponse.Validation.Warnings) == 0 {
+		t.Fatal("expected validation warnings for legacy sample metadata")
+	}
 
 	lookup := postJSON[LookupResponse](t, server.URL+"/lookup", lookupRequest{
 		Query:          "cpu spike",
@@ -83,9 +86,33 @@ func TestContentSyncRejectsInvalidBootstrap(t *testing.T) {
 
 	invalid := sampleBootstrap()
 	invalid.Manifest.ChecklistCount = 99
-	postJSON[map[string]string](t, server.URL+"/content/sync", contentSyncRequest{
+	response := postJSON[errorPayload](t, server.URL+"/content/sync", contentSyncRequest{
 		Bootstrap: invalid,
 	}, http.StatusBadRequest)
+	if len(response.Validation.Errors) == 0 {
+		t.Fatalf("expected validation errors, got %+v", response)
+	}
+}
+
+func TestContentSyncRejectsInvalidStepRisk(t *testing.T) {
+	app := newServer()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/content/sync", app.contentSync)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	invalid := sampleBootstrap()
+	invalid.Checklists[0].SafeSteps = []ChecklistStep{
+		{Step: 1, Action: "inspect host", Risk: "reckless"},
+	}
+
+	response := postJSON[errorPayload](t, server.URL+"/content/sync", contentSyncRequest{
+		Bootstrap: invalid,
+	}, http.StatusBadRequest)
+	if len(response.Validation.Errors) == 0 ||
+		!strings.Contains(response.Validation.Errors[0].Message, "invalid step risk") {
+		t.Fatalf("expected invalid step risk error, got %+v", response)
+	}
 }
 
 func TestUnknownQueryDoesNotReturnBestMatch(t *testing.T) {
@@ -159,6 +186,11 @@ func sampleCandidates() []RankedChecklist {
 			Score: 0.88,
 		},
 	}
+}
+
+type errorPayload struct {
+	Error      string           `json:"error"`
+	Validation ValidationReport `json:"validation"`
 }
 
 func sampleBootstrap() ContentBootstrap {

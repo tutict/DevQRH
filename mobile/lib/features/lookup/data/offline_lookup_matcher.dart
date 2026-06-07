@@ -268,9 +268,26 @@ class _ChecklistIndex {
   factory _ChecklistIndex.fromChecklist(Checklist checklist) {
     final idTokens = _tokens(checklist.id);
     final titleTokens = _tokens(checklist.title);
-    final keywordTokens = _tokensAll(checklist.keywords);
-    final symptomTokens = _tokensAll(checklist.symptoms);
+    final keywordTokens = _tokensAll([
+      ...checklist.keywords,
+      ...checklist.tags,
+    ]);
+    final symptomTokens = _tokensAll([
+      ...checklist.symptoms,
+      ...checklist.signals,
+    ]);
     final contextTokens = <String>{
+      ..._tokens(checklist.summary),
+      ..._tokens(checklist.severity),
+      ..._tokensAll(checklist.systems),
+      ..._tokens(checklist.impact),
+      ..._tokens(checklist.owner),
+      ..._tokens(checklist.escalation),
+      ..._tokensAll(checklist.prerequisites),
+      ..._tokensAll(checklist.safeSteps.map((step) => step.action).toList()),
+      ..._tokensAll(checklist.cautionSteps.map((step) => step.action).toList()),
+      ..._tokensAll(checklist.dangerSteps.map((step) => step.action).toList()),
+      ..._tokensAll(checklist.commands.map((item) => item.command).toList()),
       ..._tokensAll(checklist.rootCause),
       ..._tokensAll(checklist.longTermFix),
     };
@@ -294,8 +311,21 @@ class _ChecklistIndex {
       documentText: [
         checklist.id,
         checklist.title,
+        checklist.summary,
+        checklist.severity,
         ...checklist.keywords,
+        ...checklist.tags,
+        ...checklist.systems,
         ...checklist.symptoms,
+        ...checklist.signals,
+        checklist.impact,
+        checklist.owner,
+        checklist.escalation,
+        ...checklist.prerequisites,
+        ...checklist.safeSteps.map((step) => step.action),
+        ...checklist.cautionSteps.map((step) => step.action),
+        ...checklist.dangerSteps.map((step) => step.action),
+        ...checklist.commands.map((item) => item.command),
         ...checklist.rootCause,
         ...checklist.longTermFix,
       ].join(' ').toLowerCase().trim(),
