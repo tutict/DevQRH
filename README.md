@@ -14,6 +14,22 @@ DevQRH
 └─ scripts/          # Build helpers
 ```
 
+## Quick Start (One-Click Dev)
+
+Build the Go sidecar, fetch Flutter deps, and launch the desktop app in one step:
+
+```bat
+scripts\run-dev.bat
+```
+
+```powershell
+.\scripts\run-dev.ps1
+```
+
+Pass a device id to target another platform, e.g. `scripts\run-dev.bat chrome`.
+The sidecar is built to `mobile\build\sidecar\rag_sidecar.exe`, where Flutter
+auto-discovers it (no env var needed).
+
 ## Run Flutter
 
 ```bash
