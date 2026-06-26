@@ -39,14 +39,8 @@ class AppLocalizations {
   String get settingsTab => isChinese ? '设置' : 'Settings';
   String get catalog => isChinese ? '目录' : 'Catalog';
   String get runbook => isChinese ? '手册' : 'Runbook';
-  String get searchIntro => isChinese
-      ? '搜索症状，快速打开下一份 runbook，并随时使用本地知识库。'
-      : 'Search symptoms, open the next runbook, and keep a local handbook ready.';
   String get searchSectionTitle => isChinese ? '搜索' : 'Search';
   String get agentTitle => isChinese ? 'Agent 导航' : 'Agent Navigator';
-  String get agentIntro => isChinese
-      ? '遇到复杂故障时，先描述现象，Agent 会给出推荐 runbook 和下一步排查方向。'
-      : 'For messy incidents, describe the symptoms first. Agent will suggest a runbook and the next checks.';
   String get agentInputTitle => isChinese ? '复杂问题输入' : 'Complex issue input';
   String get agentInputHint =>
       'service lag after deploy / timeout query / cpu and db spike';
@@ -161,22 +155,9 @@ class AppLocalizations {
       isChinese ? '当前手册仍然可用。' : 'Current handbook stays available.';
   String get noHandbookLoaded =>
       isChinese ? '当前没有加载任何手册。' : 'No handbook is loaded.';
-  String get packageFormat => isChinese ? '包格式' : 'Package format';
-  String get accepted => isChinese ? '接受格式' : 'Accepted';
-  String get jsonPackage => isChinese ? 'JSON 包' : 'JSON package';
-  String get fields => isChinese ? '字段' : 'Fields';
-  String get tip => isChinese ? '提示' : 'Tip';
-  String get standalonePackageTip => isChinese
-      ? '可导入包含 manifest、matchingConfig 和 checklists 的 JSON 包。'
-      : 'Import a JSON package with manifest, matchingConfig, and checklists.';
-  String get appScope => isChinese ? '应用范围' : 'App scope';
-  String get purpose => isChinese ? '用途' : 'Purpose';
   String get runbooksLabel => isChinese ? '手册数量' : 'Runbooks';
   String get notLoadedLabel => isChinese ? '未加载' : 'Not loaded';
   String get builtInLabel => isChinese ? '内置' : 'Built-in';
-  String get singleAppIncidentHandbook =>
-      isChinese ? '单应用故障处置手册' : 'Single-app incident handbook';
-  String get delivery => isChinese ? '交付端' : 'Delivery';
   String get selectedPackageEmpty =>
       isChinese ? '所选包为空。' : 'Selected package is empty.';
   String importedPackageMessage(String fileName) =>

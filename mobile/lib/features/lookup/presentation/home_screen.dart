@@ -107,14 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.searchIntro,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF526071),
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,

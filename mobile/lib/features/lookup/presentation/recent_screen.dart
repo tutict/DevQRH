@@ -36,13 +36,6 @@ class RecentScreen extends ConsumerWidget {
             children: [
               PageOverviewCard(
                 title: l10n.recentActivity,
-                description: buildCollectionSummaryForTest(
-                  count: ids.length,
-                  totalCount: totalRunbooks,
-                  activityLabel: l10n.viewed,
-                  source: syncState.source,
-                  l10n: l10n,
-                ),
                 pills: [
                   l10n.recentCount(ids.length),
                   l10n.runbooksCount(totalRunbooks),

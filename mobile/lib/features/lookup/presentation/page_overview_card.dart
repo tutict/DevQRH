@@ -8,12 +8,12 @@ class PageOverviewCard extends StatelessWidget {
   const PageOverviewCard({
     super.key,
     required this.title,
-    required this.description,
+    this.description,
     required this.pills,
   });
 
   final String title;
-  final String description;
+  final String? description;
   final List<String> pills;
 
   @override
@@ -32,13 +32,15 @@ class PageOverviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF526071),
+          if (description != null && description!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              description!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF526071),
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 10,

@@ -40,11 +40,6 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           PageOverviewCard(
             title: l10n.libraryStatus,
-            description: buildSettingsOverviewForTest(
-              manifest: manifest,
-              state: contentSyncState,
-              l10n: l10n,
-            ),
             pills: [
               'v${_shortVersion(manifest)}',
               _contentSourceLabel(contentSyncState.source, l10n: l10n),
@@ -151,28 +146,6 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ],
-          const SizedBox(height: 14),
-          _SettingsCard(
-            title: l10n.packageFormat,
-            lines: [
-              l10n.accepted,
-              l10n.jsonPackage,
-              l10n.fields,
-              'manifest, matchingConfig, checklists',
-              l10n.tip,
-              l10n.standalonePackageTip,
-            ],
-          ),
-          const SizedBox(height: 14),
-          _SettingsCard(
-            title: l10n.appScope,
-            lines: [
-              l10n.purpose,
-              l10n.singleAppIncidentHandbook,
-              l10n.delivery,
-              'Android / iOS / Web / Desktop',
-            ],
-          ),
         ],
       ),
     );

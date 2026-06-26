@@ -43,13 +43,6 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
       body: PageFrame(
         children: [
           Text(l10n.agentTitle, style: theme.textTheme.headlineMedium),
-          const SizedBox(height: 8),
-          Text(
-            l10n.agentIntro,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF526071),
-            ),
-          ),
           const SizedBox(height: 18),
           SectionCard(
             title: l10n.agentInputTitle,

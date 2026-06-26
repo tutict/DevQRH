@@ -37,13 +37,6 @@ class FavoritesScreen extends ConsumerWidget {
             children: [
               PageOverviewCard(
                 title: l10n.savedRunbooks,
-                description: buildCollectionSummaryForTest(
-                  count: ids.length,
-                  totalCount: totalRunbooks,
-                  activityLabel: l10n.saved,
-                  source: syncState.source,
-                  l10n: l10n,
-                ),
                 pills: [
                   l10n.favoritesCount(ids.length),
                   l10n.runbooksCount(totalRunbooks),
