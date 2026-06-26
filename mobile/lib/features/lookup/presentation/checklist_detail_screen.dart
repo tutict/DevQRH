@@ -22,7 +22,7 @@ class ChecklistDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final checklistState = ref.watch(checklistDetailProvider(checklistId));
-    final favorites = ref.watch(favoritesProvider).valueOrNull ?? const [];
+    final favorites = ref.watch(favoritesProvider).value ?? const [];
     final l10n = context.l10n;
 
     return Scaffold(

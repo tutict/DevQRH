@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/storage/local_store.dart';
 import '../data/lookup_repository.dart';
@@ -123,7 +124,7 @@ final searchSuggestionsProvider = Provider.family<List<String>, String>((
 ) {
   final query = rawQuery.trim().toLowerCase();
   final recentSearches =
-      ref.watch(recentSearchesProvider).valueOrNull ?? const [];
+      ref.watch(recentSearchesProvider).value ?? const [];
   final catalog = ref.watch(contentCatalogProvider);
 
   if (query.isEmpty) {
@@ -175,7 +176,7 @@ final recentChecklistChainProvider = Provider.family<List<Checklist>, String>((
   ref,
   checklistId,
 ) {
-  final recentIds = ref.watch(recentProvider).valueOrNull ?? const [];
+  final recentIds = ref.watch(recentProvider).value ?? const [];
   final catalog = ref.watch(contentCatalogProvider);
   final byId = {for (final checklist in catalog) checklist.id: checklist};
 

@@ -158,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   suggestions: suggestions,
                   showClear:
                       _liveQuery.trim().isEmpty &&
-                      (recentSearchesState.valueOrNull?.isNotEmpty ?? false),
+                      (recentSearchesState.value?.isNotEmpty ?? false),
                   onSuggestionTap: (value) =>
                       _submitSearch(value, syncInput: true),
                   onClear: () =>
@@ -226,17 +226,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     _SummaryPill(
                       label: l10n.favoritesCount(
-                        favoritesState.valueOrNull?.length ?? 0,
+                        favoritesState.value?.length ?? 0,
                       ),
                     ),
                     _SummaryPill(
                       label: l10n.recentCount(
-                        recentState.valueOrNull?.length ?? 0,
+                        recentState.value?.length ?? 0,
                       ),
                     ),
                     _SummaryPill(
                       label: l10n.searchesCount(
-                        recentSearchesState.valueOrNull?.length ?? 0,
+                        recentSearchesState.value?.length ?? 0,
                       ),
                     ),
                   ],
@@ -294,7 +294,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             )),
                           ),
                           isFavorite:
-                              favoritesState.valueOrNull?.contains(
+                              favoritesState.value?.contains(
                                 entry.value.checklist.id,
                               ) ??
                               false,

@@ -206,7 +206,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   Widget build(BuildContext context) {
     final syncState = ref.watch(contentSyncProvider);
     final allChecklists = ref.watch(contentCatalogProvider);
-    final favorites = ref.watch(favoritesProvider).valueOrNull ?? const [];
+    final favorites = ref.watch(favoritesProvider).value ?? const [];
     final availableTags = _topTags(allChecklists);
     final recentTags = _visibleRecentTags(allChecklists);
     final filtered = _applyFilters(

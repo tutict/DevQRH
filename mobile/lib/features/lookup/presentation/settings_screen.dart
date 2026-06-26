@@ -150,7 +150,7 @@ class SettingsScreen extends ConsumerWidget {
 
   Future<void> _importPackage(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['json', 'devqrh'],
       withData: true,
