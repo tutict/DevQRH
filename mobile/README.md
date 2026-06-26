@@ -1,20 +1,19 @@
-# DevQRH Mobile
+# 应手 Mobile
 
-Standalone Flutter handbook app with an optional local Go RAG sidecar on
-desktop.
+独立运行的 Flutter 手册应用，桌面端可选搭配本地 Go RAG 边车。
 
-## Current mode
+## 当前形态
 
-- No remote backend required
-- Desktop builds can use `rag_sidecar.exe` for local retrieval and RAG answers
-- Built-in handbook bundle ships with the app
-- Users can import a local handbook package from Settings
-- Imported content replaces the current local handbook cache
-- Users can restore the built-in handbook at any time
+- 无需远程后端
+- 桌面构建可使用 `rag_sidecar.exe` 进行本地检索与 RAG 答案
+- 应用内置一份手册包
+- 用户可在「设置」中导入本地手册包
+- 导入的内容会替换当前本地手册缓存
+- 用户可随时恢复内置手册
 
-## Handbook package format
+## 手册包格式
 
-Import a JSON file with this shape:
+导入一个具有如下结构的 JSON 文件：
 
 ```json
 {
@@ -90,59 +89,56 @@ Import a JSON file with this shape:
 }
 ```
 
-`schemaVersion: 2` packages can include on-call metadata such as severity,
-systems, owner/escalation, review freshness, risk-grouped steps, and copyable
-commands. Older packages with only `immediateActions` still import; missing
-operational metadata is treated as a validation warning rather than a fatal
-error.
+`schemaVersion: 2` 的包可包含 on-call 元数据，例如严重级别、系统、负责人/升级路径、
+复核新鲜度、按风险分组的步骤，以及可复制的命令。仅含 `immediateActions` 的旧包仍可
+导入；缺失的运维元数据只作为校验警告，而非致命错误。
 
-The built-in reference package lives at `assets/content/default_bundle.json`.
+内置参考包位于 `assets/content/default_bundle.json`。
 
-## Build
+## 构建
 
-Windows release:
+Windows 发布版：
 
 ```bash
 flutter build windows
 ```
 
-Windows release with the local Go sidecar:
+Windows 发布版（含本地 Go 边车）：
 
 ```powershell
 ..\scripts\build-windows-with-sidecar.ps1
 ```
 
-Output:
+产物：
 
 ```text
 build/windows/x64/runner/Release/
 ```
 
-Ship the whole `Release/` folder, not only `DevQRH.exe`. With the sidecar build,
-that folder also contains `rag_sidecar.exe`.
+发布时请整体打包 `Release/` 目录，而不仅是 `DevQRH.exe`。含边车的构建中，该目录还包含
+`rag_sidecar.exe`。
 
-When `rag_sidecar.exe` is present, the Agent tab shows a local RAG answer with
-source citations before the recommended runbook. If the sidecar is missing, the
-app falls back to the built-in Flutter matcher.
+当 `rag_sidecar.exe` 存在时，Agent 标签页会在推荐的 runbook 之前展示带来源引用的本地
+RAG 答案。若边车缺失，应用会回退到内置的 Flutter 匹配器。
 
-Optional LLM mode is configured through the sidecar environment:
+可选的 LLM 模式通过边车环境变量配置：
 
 ```powershell
 $env:DEVQRH_LLM_API_KEY="..."
 $env:DEVQRH_LLM_MODEL="..."
-$env:DEVQRH_LLM_BASE_URL="https://api.openai.com/v1" # optional
+$env:DEVQRH_LLM_BASE_URL="https://api.openai.com/v1" # 可选
 ```
 
-Android release:
+Android 发布版：
 
 ```bash
 flutter build apk
 ```
 
-This machine currently cannot build Android because the Android SDK is not installed.
+当前机器尚未安装 Android SDK，无法构建 Android。
 
-## App identity
+## 应用标识
 
-- App name: `DevQRH`
-- Android package: `com.devqrh.app`
-- Windows binary: `DevQRH.exe`
+- 应用名称：`应手`
+- Android 包名：`com.devqrh.app`
+- Windows 可执行文件：`DevQRH.exe`

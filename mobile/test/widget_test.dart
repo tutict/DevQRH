@@ -15,13 +15,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('renders DevQRH home shell', (tester) async {
+  testWidgets('renders 应手 home shell', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
     await tester.pumpWidget(const ProviderScope(child: DevQrhApp()));
     await tester.pumpAndSettle();
 
-    expect(find.text('DevQRH'), findsOneWidget);
+    expect(find.text('应手'), findsOneWidget);
     expect(find.text('Search'), findsWidgets);
     expect(find.text('Agent'), findsWidgets);
     expect(find.text('Favorites'), findsWidgets);

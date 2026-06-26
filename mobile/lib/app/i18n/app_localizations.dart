@@ -31,7 +31,7 @@ class AppLocalizations {
 
   bool get isChinese => locale.languageCode.toLowerCase().startsWith('zh');
 
-  String get appTitle => 'DevQRH';
+  String get appTitle => '应手';
   String get searchTab => isChinese ? '搜索' : 'Search';
   String get agentTab => isChinese ? 'Agent' : 'Agent';
   String get favoritesTab => isChinese ? '收藏' : 'Favorites';
