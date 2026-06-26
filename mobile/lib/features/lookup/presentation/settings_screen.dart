@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/i18n/app_localizations.dart';
 import '../../../app/i18n/locale_controller.dart';
+import '../../../app/theme/theme_controller.dart';
 import '../domain/models.dart';
 import 'lookup_controller.dart';
 import 'page_overview_card.dart';
@@ -20,6 +21,7 @@ class SettingsScreen extends ConsumerWidget {
     final contentSyncState = ref.watch(contentSyncProvider);
     final manifest = contentSyncState.bootstrap?.manifest;
     final localeMode = ref.watch(appLocaleModeProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
     final l10n = context.l10n;
 
     return Scaffold(
@@ -103,6 +105,34 @@ class SettingsScreen extends ConsumerWidget {
                     return;
                   }
                   ref.read(appLocaleModeProvider.notifier).setMode(value);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _SettingsCard(
+            title: l10n.displayTheme,
+            lines: [l10n.theme, l10n.themeModeLabel(themeMode)],
+            actions: [
+              DropdownButtonFormField<ThemeMode>(
+                initialValue: themeMode,
+                decoration: InputDecoration(
+                  labelText: l10n.theme,
+                  prefixIcon: const Icon(Icons.brightness_6_outlined),
+                ),
+                items: ThemeMode.values
+                    .map(
+                      (mode) => DropdownMenuItem(
+                        value: mode,
+                        child: Text(l10n.themeModeLabel(mode)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  ref.read(appThemeModeProvider.notifier).setMode(value);
                 },
               ),
             ],

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/i18n/app_localizations.dart';
@@ -19,6 +20,7 @@ class LocalStore {
   static const _catalogRecentTagsKey = 'catalog_recent_tags';
   static const _catalogPresetsKey = 'catalog_presets';
   static const _appLocaleModeKey = 'app_locale_mode';
+  static const _appThemeModeKey = 'app_theme_mode';
 
   Future<List<String>> loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
@@ -215,6 +217,20 @@ class LocalStore {
     return AppLocaleMode.values.firstWhere(
       (mode) => mode.name == raw,
       orElse: () => AppLocaleMode.system,
+    );
+  }
+
+  Future<void> saveAppThemeMode(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_appThemeModeKey, mode.name);
+  }
+
+  Future<ThemeMode> loadAppThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_appThemeModeKey);
+    return ThemeMode.values.firstWhere(
+      (mode) => mode.name == raw,
+      orElse: () => ThemeMode.system,
     );
   }
 }

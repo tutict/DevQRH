@@ -197,6 +197,18 @@ class AppLocalizations {
     };
   }
 
+  String get displayTheme => isChinese ? '显示主题' : 'Display theme';
+  String get theme => isChinese ? '主题' : 'Theme';
+  String get lightThemeLabel => isChinese ? '亮色' : 'Light';
+  String get darkThemeLabel => isChinese ? '暗色' : 'Dark';
+  String themeModeLabel(ThemeMode mode) {
+    return switch (mode) {
+      ThemeMode.system => followSystem,
+      ThemeMode.light => lightThemeLabel,
+      ThemeMode.dark => darkThemeLabel,
+    };
+  }
+
   String get favoritesTitle => isChinese ? '收藏' : 'Favorites';
   String get savedRunbooks => isChinese ? '已保存 runbook' : 'Saved runbooks';
   String get saved => isChinese ? '已保存' : 'saved';

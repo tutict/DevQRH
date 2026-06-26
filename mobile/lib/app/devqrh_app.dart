@@ -6,6 +6,7 @@ import 'i18n/app_localizations.dart';
 import 'i18n/locale_controller.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 
 class DevQrhApp extends ConsumerWidget {
   const DevQrhApp({super.key});
@@ -14,6 +15,7 @@ class DevQrhApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final localeMode = ref.watch(appLocaleModeProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
     final locale = ref.read(appLocaleModeProvider.notifier).locale;
     final title = switch (localeMode) {
       AppLocaleMode.chinese => AppLocalizations.chinese.appTitle,
@@ -24,6 +26,8 @@ class DevQrhApp extends ConsumerWidget {
       title: title,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: themeMode,
       locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
