@@ -135,11 +135,14 @@ type MatchingWeights struct {
 
 type contentSyncRequest struct {
 	Bootstrap ContentBootstrap `json:"bootstrap"`
+	Bundle    *LearningBundle  `json:"bundle,omitempty"`
 }
 
 type contentSyncResponse struct {
 	ContentVersion string           `json:"contentVersion"`
 	ChecklistCount int              `json:"checklistCount"`
+	MaterialCount  int              `json:"materialCount,omitempty"`
+	CardCount      int              `json:"cardCount,omitempty"`
 	IndexedAt      int64            `json:"indexedAt"`
 	Validation     ValidationReport `json:"validation"`
 }
@@ -158,6 +161,7 @@ type lookupRequest struct {
 	Query          string            `json:"query"`
 	ContentVersion string            `json:"contentVersion,omitempty"`
 	Bootstrap      *ContentBootstrap `json:"bootstrap,omitempty"`
+	Bundle         *LearningBundle   `json:"bundle,omitempty"`
 }
 
 type ragAnswerResponse struct {
@@ -184,6 +188,7 @@ const (
 
 type server struct {
 	store      *contentStore
+	learning   *learningContentStore
 	metrics    *serverMetrics
 	llmLimiter chan struct{}
 	llmBreaker *circuitBreaker
@@ -193,6 +198,7 @@ type server struct {
 func newServer() *server {
 	return &server{
 		store:      &contentStore{},
+		learning:   &learningContentStore{},
 		metrics:    &serverMetrics{},
 		llmLimiter: make(chan struct{}, llmMaxConcurrency()),
 		llmBreaker: &circuitBreaker{
@@ -457,6 +463,8 @@ func main() {
 	mux.HandleFunc("/lookup", app.lookup)
 	mux.HandleFunc("/agent/navigate", app.agentNavigate)
 	mux.HandleFunc("/rag/answer", app.ragAnswer)
+	mux.HandleFunc("/cards/generate", app.cardsGenerate)
+	mux.HandleFunc("/review/schedule", app.reviewSchedule)
 
 	actualPort := listener.Addr().(*net.TCPAddr).Port
 	ready := map[string]any{
@@ -527,6 +535,10 @@ func (s *server) contentSync(w http.ResponseWriter, r *http.Request) {
 	if !s.decodeJSON(w, r, maxContentSyncBytes, &request) {
 		return
 	}
+	if request.Bundle != nil {
+		s.syncLearningContent(w, *request.Bundle)
+		return
+	}
 
 	snapshot, err := s.store.sync(request.Bootstrap)
 	if err != nil {
@@ -556,7 +568,26 @@ func (s *server) lookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request, snapshot, ok := s.decodeResolvedLookupRequest(w, r)
+	var request lookupRequest
+	if !s.decodeJSON(w, r, maxContentSyncBytes, &request) {
+		return
+	}
+	request.Query = strings.TrimSpace(request.Query)
+	if request.Query == "" {
+		s.writeError(w, http.StatusBadRequest, "query is required")
+		return
+	}
+
+	if request.Bundle != nil || s.learning.has(request.ContentVersion) {
+		snapshot, ok := s.resolveLearningContent(w, request.ContentVersion, request.Bundle)
+		if !ok {
+			return
+		}
+		writeJSON(w, searchLearningSnapshot(request.Query, snapshot))
+		return
+	}
+
+	snapshot, ok := s.resolveRunbookContent(w, request)
 	if !ok {
 		return
 	}
@@ -611,32 +642,41 @@ func (s *server) ragAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request, snapshot, ok := s.decodeResolvedLookupRequest(w, r)
-	if !ok {
+	var request lookupRequest
+	if !s.decodeJSON(w, r, maxContentSyncBytes, &request) {
+		return
+	}
+	request.Query = strings.TrimSpace(request.Query)
+	if request.Query == "" {
+		s.writeError(w, http.StatusBadRequest, "query is required")
 		return
 	}
 
+	if request.Bundle != nil || s.learning.has(request.ContentVersion) {
+		snapshot, ok := s.resolveLearningContent(w, request.ContentVersion, request.Bundle)
+		if !ok {
+			return
+		}
+		lookup := searchLearningSnapshot(request.Query, snapshot)
+		citations := make([]learningCitation, 0, len(lookup.Candidates))
+		for _, candidate := range lookup.Candidates {
+			citations = append(citations, learningCitation{ID: candidate.Material.ID, Title: candidate.Material.Title, Score: candidate.Score})
+		}
+		writeJSON(w, learningAnswerResponse{Query: request.Query, Answer: buildLearningAnswer(request.Query, lookup.Candidates), Citations: citations, Candidates: lookup.Candidates, Mode: "local"})
+		return
+	}
+
+	snapshot, ok := s.resolveRunbookContent(w, request)
+	if !ok {
+		return
+	}
 	lookup := searchSnapshot(request.Query, snapshot)
 	citations := make([]ragCitation, 0, len(lookup.Candidates))
 	for _, candidate := range lookup.Candidates {
-		citations = append(citations, ragCitation{
-			ID:    candidate.Checklist.ID,
-			Title: candidate.Checklist.Title,
-			Score: candidate.Score,
-		})
+		citations = append(citations, ragCitation{ID: candidate.Checklist.ID, Title: candidate.Checklist.Title, Score: candidate.Score})
 	}
-
 	answer := s.generateRAGAnswer(r.Context(), request.Query, lookup.Candidates)
-	writeJSON(w, ragAnswerResponse{
-		Query:      request.Query,
-		Answer:     answer.Answer,
-		Citations:  citations,
-		Candidates: lookup.Candidates,
-		Mode:       answer.Mode,
-		Provider:   answer.Provider,
-		Model:      answer.Model,
-		Notice:     answer.Notice,
-	})
+	writeJSON(w, ragAnswerResponse{Query: request.Query, Answer: answer.Answer, Citations: citations, Candidates: lookup.Candidates, Mode: answer.Mode, Provider: answer.Provider, Model: answer.Model, Notice: answer.Notice})
 }
 
 type ragAnswerResult struct {
@@ -1372,7 +1412,7 @@ func commandTexts(commands []RunbookCommand) []string {
 	return values
 }
 
-var tokenSplitter = regexp.MustCompile(`[^a-z0-9]+`)
+var tokenSplitter = regexp.MustCompile(`[^a-z0-9\p{Han}]+`)
 
 func tokenize(input string) []string {
 	parts := tokenSplitter.Split(normalize(input), -1)

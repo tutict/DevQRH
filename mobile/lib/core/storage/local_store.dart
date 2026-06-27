@@ -13,6 +13,13 @@ class LocalStore {
   static const _matchingConfigKey = 'matching_config';
   static const _contentChecklistsKey = 'content_checklists';
   static const _contentLastSyncAtKey = 'content_last_sync_at';
+  static const _learningManifestKey = 'learning_manifest';
+  static const _learningMatchingConfigKey = 'learning_matching_config';
+  static const _learningMaterialsKey = 'learning_materials';
+  static const _learningDecksKey = 'learning_decks';
+  static const _learningCardsKey = 'learning_cards';
+  static const _learningReviewStatesKey = 'learning_review_states';
+  static const _learningLastSyncAtKey = 'learning_last_sync_at';
   static const _catalogFilterKey = 'catalog_filter';
   static const _catalogSelectedTagKey = 'catalog_selected_tag';
   static const _catalogSelectedTagsKey = 'catalog_selected_tags';
@@ -148,6 +155,104 @@ class LocalStore {
     return DateTime.fromMillisecondsSinceEpoch(raw);
   }
 
+  Future<void> saveLearningCache({
+    required Map<String, dynamic> manifest,
+    required Map<String, dynamic> matchingConfig,
+    required List<Map<String, dynamic>> materials,
+    required List<Map<String, dynamic>> decks,
+    required List<Map<String, dynamic>> cards,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_learningManifestKey, jsonEncode(manifest));
+    await prefs.setString(
+      _learningMatchingConfigKey,
+      jsonEncode(matchingConfig),
+    );
+    await prefs.setString(_learningMaterialsKey, jsonEncode(materials));
+    await prefs.setString(_learningDecksKey, jsonEncode(decks));
+    await prefs.setString(_learningCardsKey, jsonEncode(cards));
+  }
+
+  Future<Map<String, dynamic>?> loadCachedLearningManifest() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_learningManifestKey);
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>?> loadCachedLearningMatchingConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_learningMatchingConfigKey);
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> loadCachedLearningMaterials() async {
+    return _loadJsonMapList(_learningMaterialsKey);
+  }
+
+  Future<List<Map<String, dynamic>>> loadCachedLearningDecks() async {
+    return _loadJsonMapList(_learningDecksKey);
+  }
+
+  Future<List<Map<String, dynamic>>> loadCachedLearningCards() async {
+    return _loadJsonMapList(_learningCardsKey);
+  }
+
+  Future<void> saveLearningReviewStates(
+    List<Map<String, dynamic>> states,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_learningReviewStatesKey, jsonEncode(states));
+  }
+
+  Future<List<Map<String, dynamic>>> loadLearningReviewStates() async {
+    return _loadJsonMapList(_learningReviewStatesKey);
+  }
+
+  Future<void> saveLearningLastSyncAt(DateTime syncedAt) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      _learningLastSyncAtKey,
+      syncedAt.millisecondsSinceEpoch,
+    );
+  }
+
+  Future<DateTime?> loadLearningLastSyncAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getInt(_learningLastSyncAtKey);
+    if (raw == null || raw <= 0) {
+      return null;
+    }
+    return DateTime.fromMillisecondsSinceEpoch(raw);
+  }
+
+  Future<void> clearLearningCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_learningManifestKey);
+    await prefs.remove(_learningMatchingConfigKey);
+    await prefs.remove(_learningMaterialsKey);
+    await prefs.remove(_learningDecksKey);
+    await prefs.remove(_learningCardsKey);
+    await prefs.remove(_learningLastSyncAtKey);
+  }
+
+  Future<List<Map<String, dynamic>>> _loadJsonMapList(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(key);
+    if (raw == null || raw.isEmpty) {
+      return const [];
+    }
+    final decoded = jsonDecode(raw) as List<dynamic>;
+    return decoded
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList();
+  }
   Future<void> saveCatalogPreferences({
     required String filter,
     required List<String> selectedTags,

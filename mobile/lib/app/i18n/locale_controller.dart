@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../../core/storage/local_store.dart';
-import '../../features/lookup/presentation/lookup_controller.dart';
+import '../../core/storage/local_store_provider.dart';
 import 'app_localizations.dart';
 
 final appLocaleModeProvider =

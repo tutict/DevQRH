@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../features/lookup/domain/models.dart';
+import '../../features/knowledge/domain/models.dart' as knowledge;
 
 class RagSidecarClient {
   Process? _process;
@@ -42,6 +43,48 @@ class RagSidecarClient {
       return null;
     }
     return RagAnswerResponse.fromJson(json);
+  }
+
+  Future<knowledge.KnowledgeSearchResponse?> searchKnowledge(
+    String query, {
+    required knowledge.LearningBundle bundle,
+  }) async {
+    final json = await _postLearningQueryJson('/lookup', query, bundle);
+    if (json == null) {
+      return null;
+    }
+    return knowledge.KnowledgeSearchResponse.fromJson(json);
+  }
+
+  Future<knowledge.TutorAnswerResponse?> answerLearningQuestion(
+    String query, {
+    required knowledge.LearningBundle bundle,
+  }) async {
+    final json = await _postLearningQueryJson('/rag/answer', query, bundle);
+    if (json == null) {
+      return null;
+    }
+    return knowledge.TutorAnswerResponse.fromJson(json);
+  }
+
+  Future<knowledge.GeneratedCardsResponse?> generateCards({
+    required List<String> materialIds,
+    required knowledge.LearningBundle bundle,
+    int limit = 6,
+  }) async {
+    final marker = _learningBundleMarker(bundle);
+    final contentVersion = await _ensureLearningContentSynced(bundle, marker);
+    final payload = <String, dynamic>{
+      'materialIds': materialIds,
+      'limit': limit,
+      if (contentVersion != null) 'contentVersion': contentVersion,
+      if (contentVersion == null) 'bundle': bundle.toJson(),
+    };
+    final response = await _postJson('/cards/generate', payload);
+    if (response != null && response.isSuccess && response.json != null) {
+      return knowledge.GeneratedCardsResponse.fromJson(response.json!);
+    }
+    return null;
   }
 
   void dispose() {
@@ -98,6 +141,85 @@ class RagSidecarClient {
     return null;
   }
 
+  Future<Map<String, dynamic>?> _postLearningQueryJson(
+    String path,
+    String query,
+    knowledge.LearningBundle bundle,
+  ) async {
+    final marker = _learningBundleMarker(bundle);
+    final contentVersion = await _ensureLearningContentSynced(bundle, marker);
+    if (contentVersion != null) {
+      final response = await _postJson(path, {
+        'query': query,
+        'contentVersion': contentVersion,
+      });
+      if (response != null && response.isSuccess && response.json != null) {
+        return response.json;
+      }
+      if (response?.statusCode == HttpStatus.conflict) {
+        _syncedBootstrapMarker = null;
+        _contentVersion = null;
+        final retriedVersion = await _ensureLearningContentSynced(
+          bundle,
+          marker,
+        );
+        if (retriedVersion != null) {
+          final retry = await _postJson(path, {
+            'query': query,
+            'contentVersion': retriedVersion,
+          });
+          if (retry != null && retry.isSuccess && retry.json != null) {
+            return retry.json;
+          }
+        }
+      }
+      if (response?.statusCode != HttpStatus.notFound) {
+        return null;
+      }
+    }
+
+    final legacy = await _postJson(path, {
+      'query': query,
+      'bundle': bundle.toJson(),
+    });
+    if (legacy != null && legacy.isSuccess && legacy.json != null) {
+      return legacy.json;
+    }
+    return null;
+  }
+
+  Future<String?> _ensureLearningContentSynced(
+    knowledge.LearningBundle bundle,
+    String marker,
+  ) async {
+    if (_syncedBootstrapMarker == marker && _contentVersion != null) {
+      return _contentVersion;
+    }
+
+    final response = await _postJson('/content/sync', {'bundle': bundle.toJson()});
+    if (response == null || !response.isSuccess || response.json == null) {
+      return null;
+    }
+    final contentVersion = response.json!['contentVersion'];
+    if (contentVersion is! String || contentVersion.trim().isEmpty) {
+      return null;
+    }
+    _syncedBootstrapMarker = marker;
+    _contentVersion = contentVersion;
+    return contentVersion;
+  }
+
+  String _learningBundleMarker(knowledge.LearningBundle bundle) {
+    final manifest = bundle.manifest;
+    return [
+      'learning',
+      manifest.version,
+      manifest.generatedAt,
+      bundle.materials.length,
+      bundle.decks.length,
+      bundle.cards.length,
+    ].join(':');
+  }
   Future<String?> _ensureContentSynced(
     ContentBootstrap bootstrap,
     String marker,

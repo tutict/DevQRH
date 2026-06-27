@@ -6,47 +6,59 @@ const bundlePath = __ENV.BUNDLE_PATH || 'mobile/assets/content/default_bundle.js
 const multiplier = Number.parseInt(__ENV.BUNDLE_MULTIPLIER || '1', 10);
 const queryMode = __ENV.QUERY_MODE || 'versioned';
 const queries = [
-  'CPU 100%',
-  'service lag after deploy',
-  'mysql timeout query',
-  'memory leak gc heap',
-  'disk io bottleneck',
-  'unknown zzz signal',
+  'main idea reading',
+  'CET-6 vocabulary context',
+  'api retry idempotency',
+  'mysql composite index',
+  'unknown zzz concept',
 ];
 
 function expandedBundle() {
   const bundle = JSON.parse(open(bundlePath));
-  const base = bundle.checklists || [];
+  const baseMaterials = bundle.materials || [];
+  const baseCards = bundle.cards || [];
+  const baseDecks = bundle.decks || [];
   if (multiplier <= 1) {
     return bundle;
   }
 
-  const checklists = [];
+  const materials = [];
+  const cards = [];
   for (let i = 0; i < multiplier; i += 1) {
-    for (const checklist of base) {
-      checklists.push({
-        ...checklist,
-        id: `${checklist.id}_${i}`,
-        title: `${checklist.title} ${i}`,
+    for (const material of baseMaterials) {
+      materials.push({
+        ...material,
+        id: `${material.id}_${i}`,
+        title: `${material.title} ${i}`,
+      });
+    }
+    for (const card of baseCards) {
+      cards.push({
+        ...card,
+        id: `${card.id}_${i}`,
+        sourceMaterialIds: (card.sourceMaterialIds || []).map((id) => `${id}_${i}`),
       });
     }
   }
 
+  const manifest = bundle.manifest || {};
   return {
     ...bundle,
     manifest: {
-      ...bundle.manifest,
-      checklistCount: checklists.length,
+      ...manifest,
+      version: `${manifest.version || 'loadtest'}-${multiplier}`,
     },
-    checklists,
+    materials,
+    decks: baseDecks,
+    cards,
   };
 }
 
-const bootstrap = expandedBundle();
+const bundle = expandedBundle();
 const headers = { 'Content-Type': 'application/json' };
 const payloads = queries.map((query) => ({
   query,
-  legacyBody: JSON.stringify({ query, bootstrap }),
+  legacyBody: JSON.stringify({ query, bundle }),
 }));
 
 export const options = {
@@ -69,7 +81,7 @@ export const options = {
 export function setup() {
   const syncResponse = http.post(
     `${target}/content/sync`,
-    JSON.stringify({ bootstrap }),
+    JSON.stringify({ bundle }),
     { headers },
   );
 
@@ -97,11 +109,7 @@ export default function (data) {
     return;
   }
 
-  const path = routeIndex < 4
-    ? '/lookup'
-    : routeIndex < 7
-      ? '/agent/navigate'
-      : '/rag/answer';
+  const path = routeIndex < 5 ? '/lookup' : '/rag/answer';
   const body = queryMode === 'legacy'
     ? selected.legacyBody
     : JSON.stringify({ query: selected.query, contentVersion: data.contentVersion });

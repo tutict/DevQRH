@@ -1,26 +1,21 @@
 {
   "manifest": {
-    "schemaVersion": 2,
-    "packageId": "devqrh.default.oncall",
-    "name": "DevQRH Default On-Call Runbooks",
-    "version": "20260415",
-    "checklistCount": 4,
-    "runbookCount": 4,
-    "generatedAt": 1776124800000,
-    "team": "platform",
-    "sourceRevision": "seed",
-    "defaultLocale": "en-US",
-    "minAppVersion": "0.1.0"
+    "schemaVersion": 1,
+    "packageId": "yingshou.default.learning",
+    "name": "应手 Default Learning Bundle",
+    "version": "20260627",
+    "generatedAt": 1782499200000,
+    "defaultLocale": "zh-CN",
+    "sourceType": "bundle"
   },
   "matchingConfig": {
-    "partialMinLength": 3,
+    "partialMinLength": 2,
     "synonymGroups": [
-      ["slow", "latency", "timeout", "lag", "delay", "sluggish"],
-      ["cpu", "load", "hot", "busy", "spike", "thread"],
-      ["memory", "heap", "gc", "oom", "leak"],
-      ["mysql", "db", "database", "sql", "query"],
-      ["service", "api", "app", "endpoint"],
-      ["disk", "io", "iowait", "storage", "bottleneck"]
+      ["english", "vocabulary", "word", "phrase", "translation", "cet", "reading"],
+      ["考研", "英语", "阅读", "长难句", "主旨", "词汇"],
+      ["project", "engineering", "architecture", "api", "service", "document"],
+      ["database", "sql", "mysql", "index", "query", "索引"],
+      ["review", "card", "memory", "recall", "practice", "复习", "卡片"]
     ],
     "weights": {
       "exactQueryId": 1.0,
@@ -43,236 +38,120 @@
       "phraseBoost": 0.04
     }
   },
-  "checklists": [
+  "materials": [
     {
-      "id": "cpu_100",
-      "title": "CPU 100%",
-      "summary": "Use this runbook when one service instance or host is CPU saturated and requests are slowing down.",
-      "severity": "p2",
-      "systems": ["linux", "jvm", "backend-service"],
-      "tags": ["cpu", "saturation", "latency"],
-      "keywords": [
-        "cpu",
-        "load",
-        "hot thread",
-        "high load",
-        "service slow",
-        "response lag"
-      ],
-      "symptoms": [
-        "high CPU",
-        "load high",
-        "slow response",
-        "service slow"
-      ],
-      "signals": [
-        "CPU usage above 90%",
-        "run queue increasing",
-        "p95 latency rising"
-      ],
-      "impact": "Requests may queue or time out while the overloaded process consumes CPU.",
-      "owner": "backend platform",
-      "escalation": "Escalate to the owning service team if CPU remains above 90% for more than 10 minutes or customer errors rise.",
-      "lastReviewedAt": "2026-04-15",
-      "reviewIntervalDays": 180,
-      "prerequisites": ["host shell access", "process id", "service dashboard"],
-      "safeSteps": [
-        { "step": 1, "action": "Check host load and top CPU processes with top.", "risk": "safe" },
-        { "step": 2, "action": "Inspect per-thread CPU with top -Hp {pid}.", "risk": "safe" },
-        { "step": 3, "action": "Capture a thread dump with jstack {pid}.", "risk": "safe" }
-      ],
-      "cautionSteps": [
-        { "step": 4, "action": "Compare traffic and deployment changes before deciding whether this is capacity or a code hot path.", "risk": "caution" }
-      ],
-      "dangerSteps": [
-        { "step": 5, "action": "Restart the service only after confirming redundancy and active traffic drain behavior.", "risk": "danger" }
-      ],
-      "commands": [
-        { "id": "cpu-top", "title": "Top processes", "command": "top", "step": 1, "risk": "safe" },
-        { "id": "cpu-threads", "title": "Thread CPU", "command": "top -Hp {pid}", "step": 2, "risk": "safe" },
-        { "id": "cpu-jstack", "title": "Thread dump", "command": "jstack {pid}", "step": 3, "risk": "safe" }
-      ],
-      "immediateActions": [
-        { "step": 1, "action": "top", "risk": "safe" },
-        { "step": 2, "action": "top -Hp {pid}", "risk": "safe" },
-        { "step": 3, "action": "jstack {pid}", "risk": "safe" }
-      ],
-      "decisionTree": [
-        { "condition": "infinite loop", "action": "restart service" },
-        { "condition": "high GC", "action": "analyze heap dump" }
-      ],
-      "rootCause": ["bad code", "traffic spike"],
-      "longTermFix": ["optimize hot path", "add caching"],
-      "relatedRunbooks": ["memory_leak", "io_bottleneck"]
+      "id": "exam_english_reading_main_idea",
+      "title": "考研英语阅读：主旨题判断",
+      "type": "exam",
+      "tags": ["考研", "英语", "阅读", "主旨题"],
+      "summary": "主旨题优先看段落转折、首末段和反复出现的核心名词，避免被局部例子误导。",
+      "content": "考研英语阅读的主旨题通常考查作者围绕什么问题展开论证。先看题干是否询问 main idea、best title 或 author's purpose。阅读时优先标记首段问题、末段结论、每段转折后的观点和重复出现的核心名词。例子、数字和人名通常服务于观点，不应直接当作主旨。选项如果只覆盖某一段、语气过强或偷换核心对象，通常不是最佳答案。",
+      "source": "built-in/exam/english_reading.md",
+      "chunks": [
+        "主旨题先定位题干类型：main idea、best title、author's purpose。",
+        "首段问题、末段结论、转折后的观点和重复核心名词比细节例子更重要。",
+        "只覆盖局部段落或语气过强的选项通常不是最佳主旨。"
+      ]
     },
     {
-      "id": "mysql_slow",
-      "title": "MySQL Slow Query",
-      "summary": "Use this runbook when API latency or database alerts point to slow SQL, lock waits, or inefficient query plans.",
-      "severity": "p2",
-      "systems": ["mysql", "database", "backend-service"],
-      "tags": ["mysql", "sql", "latency"],
-      "keywords": ["mysql", "db", "slow query", "latency", "timeout", "sql"],
-      "symptoms": [
-        "db slow",
-        "query latency high",
-        "service slow",
-        "slow response"
-      ],
-      "signals": [
-        "slow query count increasing",
-        "lock wait time rising",
-        "database CPU or IO high"
-      ],
-      "impact": "Endpoints depending on the affected query may become slow or time out.",
-      "owner": "database platform",
-      "escalation": "Escalate to DBA and owning service team when lock waits or p95 latency keep rising after safe inspection.",
-      "lastReviewedAt": "2026-04-15",
-      "reviewIntervalDays": 180,
-      "prerequisites": ["read-only database session", "slow query sample", "service dashboard"],
-      "safeSteps": [
-        { "step": 1, "action": "Inspect currently running queries with show full processlist.", "risk": "safe" },
-        { "step": 2, "action": "Confirm slow query logging status.", "risk": "safe" },
-        { "step": 3, "action": "Run explain analyze only against a known representative SQL statement.", "risk": "safe" }
-      ],
-      "cautionSteps": [
-        { "step": 4, "action": "Avoid running expensive explain plans on production until query shape and limits are understood.", "risk": "caution" }
-      ],
-      "dangerSteps": [
-        { "step": 5, "action": "Killing blocking sessions can roll back work; confirm owner and customer impact first.", "risk": "danger" }
-      ],
-      "commands": [
-        { "id": "mysql-processlist", "title": "Process list", "command": "show full processlist;", "step": 1, "risk": "safe" },
-        { "id": "mysql-slow-log", "title": "Slow log status", "command": "show variables like 'slow_query_log';", "step": 2, "risk": "safe" },
-        { "id": "mysql-explain", "title": "Query plan", "command": "explain analyze {sql}", "step": 3, "risk": "safe" }
-      ],
-      "immediateActions": [
-        { "step": 1, "action": "show full processlist;", "risk": "safe" },
-        { "step": 2, "action": "show variables like 'slow_query_log';", "risk": "safe" },
-        { "step": 3, "action": "explain analyze {sql}", "risk": "safe" }
-      ],
-      "decisionTree": [
-        { "condition": "full table scan", "action": "add or fix index" },
-        { "condition": "lock wait", "action": "find blocking transaction" }
-      ],
-      "rootCause": ["missing index", "large result set"],
-      "longTermFix": ["add slow SQL review", "tune query and schema"],
-      "relatedRunbooks": ["io_bottleneck"]
+      "id": "exam_cet6_vocab_context",
+      "title": "CET-6 Vocabulary: Infer Meaning From Context",
+      "type": "exam",
+      "tags": ["CET-6", "vocabulary", "reading", "context"],
+      "summary": "Unknown words can often be inferred from contrast markers, examples, explanations, and sentence polarity.",
+      "content": "When a CET-6 reading passage contains an unfamiliar word, do not translate it in isolation. Check contrast markers such as however and whereas, explanation markers such as in other words, examples after for instance, and the positive or negative polarity of the sentence. The correct option should fit the local grammar and preserve the author's attitude.",
+      "source": "built-in/exam/cet6_vocabulary.md",
+      "chunks": [
+        "Infer unfamiliar words through contrast, explanation, examples, and sentence polarity.",
+        "The answer must fit local grammar and preserve the author's attitude.",
+        "Avoid translating a word in isolation when context gives a functional meaning."
+      ]
     },
     {
-      "id": "memory_leak",
-      "title": "Memory Leak",
-      "summary": "Use this runbook when heap, GC, or OOM signals suggest a process is retaining memory over time.",
-      "severity": "p2",
-      "systems": ["jvm", "backend-service", "memory"],
-      "tags": ["memory", "heap", "oom"],
-      "keywords": ["memory", "heap", "gc", "oom", "leak"],
-      "symptoms": [
-        "heap keeps growing",
-        "frequent GC",
-        "OOM risk",
-        "service slow"
-      ],
-      "signals": [
-        "old generation keeps rising",
-        "full GC frequency increasing",
-        "container memory near limit"
-      ],
-      "impact": "The service may slow down, restart unexpectedly, or be killed by the runtime/container.",
-      "owner": "backend platform",
-      "escalation": "Escalate to the owning service team if old generation keeps rising or OOM restarts begin.",
-      "lastReviewedAt": "2026-04-15",
-      "reviewIntervalDays": 180,
-      "prerequisites": ["process id", "JDK tools", "heap dashboard"],
-      "safeSteps": [
-        { "step": 1, "action": "Check GC utilization with jstat -gcutil {pid} 1000.", "risk": "safe" },
-        { "step": 2, "action": "Inspect live object histogram with jmap -histo:live {pid}.", "risk": "safe" },
-        { "step": 3, "action": "Record heap trend and recent deployment changes.", "risk": "safe" }
-      ],
-      "cautionSteps": [
-        { "step": 4, "action": "Heap dumps can be large and sensitive; confirm disk space and handling policy first.", "risk": "caution" }
-      ],
-      "dangerSteps": [
-        { "step": 5, "action": "Restarting may hide evidence; capture enough diagnostics before restart unless customer impact is severe.", "risk": "danger" }
-      ],
-      "commands": [
-        { "id": "mem-jstat", "title": "GC utilization", "command": "jstat -gcutil {pid} 1000", "step": 1, "risk": "safe" },
-        { "id": "mem-histo", "title": "Live histogram", "command": "jmap -histo:live {pid}", "step": 2, "risk": "safe" },
-        { "id": "mem-dump", "title": "Heap dump", "command": "jmap -dump:live,format=b,file={file}.hprof {pid}", "step": 4, "risk": "caution" }
-      ],
-      "immediateActions": [
-        { "step": 1, "action": "jstat -gcutil {pid} 1000", "risk": "safe" },
-        { "step": 2, "action": "jmap -histo:live {pid}", "risk": "safe" },
-        { "step": 3, "action": "capture heap dump", "risk": "caution" }
-      ],
-      "decisionTree": [
-        { "condition": "old gen rising", "action": "analyze retained objects" },
-        { "condition": "metaspace high", "action": "check classloader leak" }
-      ],
-      "rootCause": ["object retention", "cache not evicted"],
-      "longTermFix": ["add leak tests", "cap cache size"],
-      "relatedRunbooks": ["cpu_100"]
+      "id": "engineering_api_retry_strategy",
+      "title": "工程文档：API Retry Strategy",
+      "type": "engineering",
+      "tags": ["engineering", "api", "reliability", "retry"],
+      "summary": "Retries should be bounded, idempotent, observable, and paired with backoff so they do not amplify outages.",
+      "content": "A client retry policy should only retry idempotent operations or requests carrying an idempotency key. Use exponential backoff with jitter, cap the total retry budget, and stop retrying on validation errors. Emit metrics for retry count, final failure, and latency inflation. Pair retry policy with circuit breaking when downstream saturation is possible.",
+      "source": "built-in/engineering/api_retry_strategy.md",
+      "chunks": [
+        "Retry only idempotent operations or requests with an idempotency key.",
+        "Use exponential backoff with jitter and a bounded retry budget.",
+        "Do not retry validation errors; observe retry count, failures, and latency inflation."
+      ]
     },
     {
-      "id": "io_bottleneck",
-      "title": "IO Bottleneck",
-      "summary": "Use this runbook when disk utilization, iowait, or storage latency is causing service delay.",
-      "severity": "p2",
-      "systems": ["linux", "storage", "backend-service"],
-      "tags": ["disk", "io", "latency"],
-      "keywords": [
-        "io",
-        "disk",
-        "iowait",
-        "bottleneck",
-        "service lag",
-        "latency"
-      ],
-      "symptoms": [
-        "disk busy",
-        "io wait high",
-        "service lag",
-        "response delay"
-      ],
-      "signals": [
-        "await latency high",
-        "device utilization near 100%",
-        "write queue increasing"
-      ],
-      "impact": "Requests depending on disk or storage may stall, queue, or time out.",
-      "owner": "infrastructure platform",
-      "escalation": "Escalate to infrastructure or storage owner if one device remains saturated after identifying the writer.",
-      "lastReviewedAt": "2026-04-15",
-      "reviewIntervalDays": 180,
-      "prerequisites": ["host shell access", "process id", "storage dashboard"],
-      "safeSteps": [
-        { "step": 1, "action": "Inspect device latency and utilization with iostat -xz 1 3.", "risk": "safe" },
-        { "step": 2, "action": "Find processes doing disk IO with pidstat -d 1.", "risk": "safe" },
-        { "step": 3, "action": "Inspect open files for the suspected process with lsof -p {pid}.", "risk": "safe" }
-      ],
-      "cautionSteps": [
-        { "step": 4, "action": "Throttling writes can protect the service but may delay background work; confirm workload role first.", "risk": "caution" }
-      ],
-      "dangerSteps": [
-        { "step": 5, "action": "Moving load or restarting writers may drop in-flight work; coordinate with the service owner first.", "risk": "danger" }
-      ],
-      "commands": [
-        { "id": "io-iostat", "title": "Disk stats", "command": "iostat -xz 1 3", "step": 1, "risk": "safe" },
-        { "id": "io-pidstat", "title": "Process IO", "command": "pidstat -d 1", "step": 2, "risk": "safe" },
-        { "id": "io-lsof", "title": "Open files", "command": "lsof -p {pid}", "step": 3, "risk": "safe" }
-      ],
-      "immediateActions": [
-        { "step": 1, "action": "iostat -xz 1 3", "risk": "safe" },
-        { "step": 2, "action": "pidstat -d 1", "risk": "safe" },
-        { "step": 3, "action": "lsof -p {pid}", "risk": "safe" }
-      ],
-      "decisionTree": [
-        { "condition": "device util near 100%", "action": "move load or throttle writes" },
-        { "condition": "single process saturating disk", "action": "inspect hot files and write path" }
-      ],
-      "rootCause": ["disk contention", "large sync writes"],
-      "longTermFix": ["isolate noisy workload", "optimize write pattern"],
-      "relatedRunbooks": ["mysql_slow", "cpu_100"]
+      "id": "engineering_mysql_leftmost_prefix",
+      "title": "工程文档：MySQL 联合索引最左前缀",
+      "type": "engineering",
+      "tags": ["database", "mysql", "sql", "index"],
+      "summary": "联合索引按照从左到右的字段顺序生效，范围查询之后的字段通常难以继续用于精确定位。",
+      "content": "MySQL 联合索引遵循最左前缀原则。索引 (tenant_id, status, created_at) 可以支持 tenant_id、tenant_id + status、tenant_id + status + created_at 的过滤。若跳过 tenant_id 只查 status，通常无法有效使用该联合索引。遇到范围条件时，范围字段之后的字段通常不能继续用于精确定位，但仍可能用于覆盖索引。设计索引时应把高选择性、稳定出现在查询条件中的字段放在前面。",
+      "source": "built-in/engineering/mysql_index.md",
+      "chunks": [
+        "联合索引按从左到右字段顺序匹配，不能随意跳过前导列。",
+        "范围查询之后的字段通常难以继续用于精确定位。",
+        "索引设计应结合查询模式、选择性和排序需求。"
+      ]
+    }
+  ],
+  "decks": [
+    {
+      "id": "exam-reading",
+      "title": "Exam Reading Skills",
+      "goal": "Build repeatable reading and vocabulary strategies for exams.",
+      "tags": ["exam", "reading"],
+      "cardIds": ["card_main_idea_signals", "card_vocab_context"]
+    },
+    {
+      "id": "engineering-docs",
+      "title": "Engineering Docs",
+      "goal": "Review practical engineering document concepts.",
+      "tags": ["engineering", "project"],
+      "cardIds": ["card_retry_idempotency", "card_mysql_leftmost"]
+    }
+  ],
+  "cards": [
+    {
+      "id": "card_main_idea_signals",
+      "deckId": "exam-reading",
+      "front": "考研英语阅读主旨题优先看哪些信号？",
+      "back": "看首段问题、末段结论、转折后的观点和反复出现的核心名词。",
+      "explanation": "例子、数字、人名多半服务于观点，不要直接当作全文主旨。",
+      "tags": ["考研", "阅读"],
+      "difficulty": 2,
+      "sourceMaterialIds": ["exam_english_reading_main_idea"]
+    },
+    {
+      "id": "card_vocab_context",
+      "deckId": "exam-reading",
+      "front": "How can you infer an unknown CET-6 word from context?",
+      "back": "Use contrast markers, explanations, examples, sentence polarity, and grammar fit.",
+      "explanation": "The correct option should preserve the author's attitude instead of translating the word in isolation.",
+      "tags": ["CET-6", "vocabulary"],
+      "difficulty": 2,
+      "sourceMaterialIds": ["exam_cet6_vocab_context"]
+    },
+    {
+      "id": "card_retry_idempotency",
+      "deckId": "engineering-docs",
+      "front": "What must be true before an API client retries a request?",
+      "back": "The operation should be idempotent, or the request should carry an idempotency key.",
+      "explanation": "Retries without idempotency can duplicate writes or amplify an outage.",
+      "tags": ["api", "retry"],
+      "difficulty": 2,
+      "sourceMaterialIds": ["engineering_api_retry_strategy"]
+    },
+    {
+      "id": "card_mysql_leftmost",
+      "deckId": "engineering-docs",
+      "front": "What does MySQL's leftmost-prefix rule mean for a composite index?",
+      "back": "The query should match index columns from left to right; skipping the leading column usually prevents effective use of the index.",
+      "explanation": "Range conditions may also stop later columns from being used for precise filtering.",
+      "tags": ["mysql", "index"],
+      "difficulty": 3,
+      "sourceMaterialIds": ["engineering_mysql_leftmost_prefix"]
     }
   ]
 }

@@ -1,579 +1,242 @@
 import 'dart:convert';
 
 import 'package:devqrh_mobile/app/devqrh_app.dart';
+import 'package:devqrh_mobile/core/sidecar/rag_sidecar_client.dart';
 import 'package:devqrh_mobile/core/storage/local_store.dart';
-import 'package:devqrh_mobile/features/lookup/data/lookup_repository.dart';
-import 'package:devqrh_mobile/features/lookup/domain/models.dart';
-import 'package:devqrh_mobile/features/lookup/presentation/checklist_detail_screen.dart';
-import 'package:devqrh_mobile/features/lookup/presentation/favorites_screen.dart';
-import 'package:devqrh_mobile/features/lookup/presentation/home_screen.dart';
-import 'package:devqrh_mobile/features/lookup/presentation/lookup_controller.dart';
-import 'package:devqrh_mobile/features/lookup/presentation/settings_screen.dart';
-import 'package:flutter/material.dart';
+import 'package:devqrh_mobile/features/knowledge/data/knowledge_repository.dart';
+import 'package:devqrh_mobile/features/knowledge/data/offline_knowledge_matcher.dart';
+import 'package:devqrh_mobile/features/knowledge/data/review_scheduler.dart';
+import 'package:devqrh_mobile/features/knowledge/domain/models.dart';
+import 'package:devqrh_mobile/features/knowledge/presentation/knowledge_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('renders 应手 home shell', (tester) async {
+  setUpAll(() {
+    GoogleFonts.config.allowRuntimeFetching = false;
+  });
+
+  testWidgets('renders learning home shell', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
     await tester.pumpWidget(const ProviderScope(child: DevQrhApp()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('应手'), findsOneWidget);
-    expect(find.text('Search'), findsWidgets);
-    expect(find.text('Agent'), findsWidgets);
-    expect(find.text('Favorites'), findsWidgets);
-    expect(find.text('Recent'), findsWidgets);
+    expect(find.text('Study'), findsWidgets);
+    expect(find.text('Library'), findsWidgets);
+    expect(find.text('Ask'), findsWidgets);
+    expect(find.text('Cards'), findsWidgets);
     expect(find.text('Settings'), findsWidgets);
+    expect(find.text('Search Materials'), findsOneWidget);
   });
 
-  testWidgets('restores catalog filter preferences', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'catalog_filter': 'mysql',
-      'catalog_selected_tags': ['database', 'slow'],
-      'catalog_recent_tags': ['database', 'timeout'],
-      'catalog_sort': 'favoritesFirst',
-      'catalog_presets': jsonEncode([
-        {
-          'name': 'DB focus',
-          'filter': 'mysql',
-          'selectedTags': ['database'],
-          'sort': 'favoritesFirst',
-        },
-      ]),
-    });
+  test('parses learning bundle schema with materials, decks, and cards', () {
+    final bundle = LearningBundle.fromJson(sampleLearningBundleJson());
 
-    await tester.pumpWidget(const ProviderScope(child: DevQrhApp()));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    await tester.tap(find.text('Catalog'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    final textField = tester.widget<TextField>(find.byType(TextField).first);
-    expect(textField.controller?.text, 'mysql');
-    expect(find.text('Favorites first'), findsOneWidget);
-    expect(find.text('Recent tags'), findsOneWidget);
-    expect(find.text('database'), findsWidgets);
-    expect(find.text('DB focus'), findsOneWidget);
+    expect(bundle.manifest.packageId, 'test.learning');
+    expect(bundle.manifest.defaultLocale, 'zh-CN');
+    expect(bundle.materials, hasLength(2));
+    expect(bundle.materials.first.type, MaterialType.engineering);
+    expect(bundle.decks.single.cardIds, contains('card_retry_idempotency'));
+    expect(bundle.cards.single.sourceMaterialIds, ['engineering_api_retry']);
   });
 
-  test('ranks related runbooks from shared keywords and symptoms', () {
-    final cpuChecklist = Checklist(
-      id: 'cpu_100',
-      title: 'CPU 100%',
-      keywords: const ['cpu', 'thread'],
-      symptoms: const ['high cpu', 'service lag'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const ['busy threads'],
-      longTermFix: const ['optimize workload'],
-    );
-    final ioChecklist = Checklist(
-      id: 'io_bottleneck',
-      title: 'IO Bottleneck',
-      keywords: const ['thread', 'storage'],
-      symptoms: const ['service lag', 'slow writes'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const ['storage pressure'],
-      longTermFix: const ['scale disk throughput'],
-    );
-    final memoryChecklist = Checklist(
-      id: 'memory_leak',
-      title: 'Memory Leak',
-      keywords: const ['memory', 'heap'],
-      symptoms: const ['oom', 'high heap'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const ['retained objects'],
-      longTermFix: const ['fix object lifecycle'],
+  test('offline matcher ranks the strongest study material first', () {
+    final bundle = LearningBundle.fromJson(sampleLearningBundleJson());
+    final response = OfflineKnowledgeMatcher().search(
+      query: 'api retry idempotency',
+      materials: bundle.materials,
+      config: bundle.matchingConfig,
     );
 
-    final container = ProviderContainer(
-      overrides: [
-        contentCatalogProvider.overrideWithValue([
-          cpuChecklist,
-          ioChecklist,
-          memoryChecklist,
-        ]),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final related = container.read(relatedChecklistsProvider(cpuChecklist));
-
-    expect(related.map((item) => item.id), contains('io_bottleneck'));
-    expect(related.map((item) => item.id), isNot(contains('cpu_100')));
-  });
-
-  test('builds checklist summary text for clipboard copy', () {
-    final checklist = Checklist(
-      id: 'cpu_100',
-      title: 'CPU 100%',
-      keywords: const ['cpu', 'thread'],
-      symptoms: const ['high cpu', 'service lag'],
-      immediateActions: [
-        ChecklistStep(step: 1, action: 'check top'),
-        ChecklistStep(step: 2, action: 'inspect hot threads'),
-      ],
-      decisionTree: const [],
-      rootCause: const ['busy threads'],
-      longTermFix: const ['optimize workload'],
-    );
-
-    final summary = buildChecklistSummaryForTest(checklist);
-
-    expect(summary, contains('CPU 100%'));
-    expect(summary, contains('ID: cpu_100'));
-    expect(summary, contains('Keywords: cpu, thread'));
-    expect(summary, contains('1. check top'));
-  });
-
-  test('builds recent checklist chain from recent ids', () {
-    final cpuChecklist = Checklist(
-      id: 'cpu_100',
-      title: 'CPU 100%',
-      keywords: const ['cpu'],
-      symptoms: const ['high cpu'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const [],
-      longTermFix: const [],
-    );
-    final ioChecklist = Checklist(
-      id: 'io_bottleneck',
-      title: 'IO Bottleneck',
-      keywords: const ['storage'],
-      symptoms: const ['service lag'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const [],
-      longTermFix: const [],
-    );
-    final mysqlChecklist = Checklist(
-      id: 'mysql_slow',
-      title: 'MySQL Slow',
-      keywords: const ['database'],
-      symptoms: const ['slow query'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const [],
-      longTermFix: const [],
-    );
-
-    final recentController = RecentController(FakeLocalStore())
-      ..state = const AsyncData(['cpu_100', 'io_bottleneck', 'mysql_slow']);
-
-    final container = ProviderContainer(
-      overrides: [
-        contentCatalogProvider.overrideWithValue([
-          cpuChecklist,
-          ioChecklist,
-          mysqlChecklist,
-        ]),
-        recentProvider.overrideWith((ref) => recentController),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final recentChain = container.read(recentChecklistChainProvider('cpu_100'));
-
-    expect(recentChain.map((item) => item.id).toList(), [
-      'io_bottleneck',
-      'mysql_slow',
-    ]);
-  });
-
-  test('combines recent searches and catalog content into suggestions', () {
-    final checklist = Checklist(
-      id: 'mysql_slow',
-      title: 'MySQL Slow',
-      keywords: const ['database', 'query'],
-      symptoms: const ['timeout query', 'service lag'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const [],
-      longTermFix: const [],
-    );
-
-    final recentSearchesController = RecentSearchesController(FakeLocalStore())
-      ..state = const AsyncData(['mysql timeout', 'cpu spike']);
-
-    final container = ProviderContainer(
-      overrides: [
-        contentCatalogProvider.overrideWithValue([checklist]),
-        recentSearchesProvider.overrideWith((ref) => recentSearchesController),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final suggestions = container.read(searchSuggestionsProvider('mysql'));
-
-    expect(suggestions, contains('mysql timeout'));
-    expect(suggestions, contains('MySQL Slow'));
-    expect(suggestions, isNotEmpty);
-  });
-
-  test('builds explainable match hints for a search result', () {
-    final checklist = Checklist(
-      id: 'mysql_slow',
-      title: 'MySQL Slow',
-      keywords: const ['database', 'query'],
-      symptoms: const ['timeout query', 'service lag'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const ['slow storage'],
-      longTermFix: const ['optimize indexes'],
-    );
-
-    final hints = buildMatchHints('timeout query', checklist);
-
-    expect(hints, isNotEmpty);
-    expect(
-      hints.any((item) => item.contains('keyword') || item.contains('symptom')),
-      isTrue,
-    );
-  });
-
-  test('builds compact checklist preview text for result cards', () {
-    final checklist = Checklist(
-      id: 'cpu_100',
-      title: 'CPU 100%',
-      keywords: const ['cpu', 'thread'],
-      symptoms: const ['high cpu', 'service lag'],
-      immediateActions: [
-        ChecklistStep(step: 1, action: 'check top'),
-        ChecklistStep(step: 2, action: 'inspect hot threads'),
-      ],
-      decisionTree: const [],
-      rootCause: const ['busy threads'],
-      longTermFix: const [],
-    );
-
-    final preview = buildChecklistPreviewForTest(checklist);
-
-    expect(preview, contains('Symptoms: high cpu / service lag'));
-    expect(preview, contains('Next: 1. check top'));
-    expect(preview, contains('Root cause: busy threads'));
-  });
-
-  test('builds agent navigation response from cached runbooks', () {
-    final repository = LookupRepository(FakeLocalStore());
-    final response = repository.navigateAgentCached(
-      'service lag after deploy',
-      checklists: [
-        Checklist(
-          id: 'cpu_100',
-          title: 'CPU 100%',
-          keywords: const ['cpu', 'thread'],
-          symptoms: const ['service lag', 'high cpu'],
-          immediateActions: const [],
-          decisionTree: const [],
-          rootCause: const ['busy threads'],
-          longTermFix: const ['optimize workload'],
-        ),
-        Checklist(
-          id: 'mysql_slow',
-          title: 'MySQL Slow',
-          keywords: const ['database', 'query'],
-          symptoms: const ['timeout query', 'slow query'],
-          immediateActions: const [],
-          decisionTree: const [],
-          rootCause: const ['missing index'],
-          longTermFix: const ['optimize indexes'],
-        ),
-      ],
-      matchingConfig: MatchingConfig(
-        partialMinLength: 3,
-        synonymGroups: const [
-          ['slow', 'lag', 'latency'],
-          ['service', 'api', 'app'],
-        ],
-        weights: MatchingWeights(
-          exactQueryId: 1.0,
-          exactIdToken: 1.0,
-          exactTitleToken: 0.95,
-          exactKeywordToken: 0.90,
-          exactSymptomToken: 0.78,
-          exactContextToken: 0.60,
-          synonymKeyword: 0.72,
-          synonymPrimary: 0.62,
-          synonymAny: 0.50,
-          partialKeyword: 0.48,
-          partialPrimary: 0.40,
-          partialAny: 0.28,
-          tokenAverage: 0.88,
-          keywordCoverage: 0.12,
-          exactTitleBoost: 0.12,
-          partialTitleBoost: 0.07,
-          partialIdBoost: 0.07,
-          phraseBoost: 0.04,
-        ),
-      ),
-    );
-
-    expect(response.bestMatch, isNotNull);
+    expect(response.bestMatch?.id, 'engineering_api_retry');
     expect(response.candidates, isNotEmpty);
-    expect(response.clarifiers, isNotEmpty);
-    expect(response.clarifiers.first, startsWith('check: '));
+    expect(response.candidates.first.score, greaterThan(0.5));
   });
 
-  test('builds local RAG answer from cached runbooks', () {
-    final repository = LookupRepository(FakeLocalStore());
+  test('local tutor answer stays grounded in cited learning material', () {
+    final repository = KnowledgeRepository(FakeLocalStore());
+    final bundle = LearningBundle.fromJson(sampleLearningBundleJson());
+
     final answer = repository.answerQuestionCached(
-      'cpu spike',
-      checklists: [
-        Checklist(
-          id: 'cpu_100',
-          title: 'CPU 100%',
-          keywords: const ['cpu', 'thread'],
-          symptoms: const ['high cpu', 'service lag'],
-          immediateActions: [
-            ChecklistStep(step: 1, action: 'check top'),
-            ChecklistStep(step: 2, action: 'inspect hot threads'),
-          ],
-          decisionTree: [
-            ChecklistBranch(condition: 'high GC', action: 'analyze heap dump'),
-          ],
-          rootCause: const ['busy threads'],
-          longTermFix: const ['optimize workload'],
-        ),
-      ],
+      'Should API clients retry validation errors?',
+      bundle: bundle,
     );
 
-    expect(answer.answer, contains('CPU 100%'));
-    expect(answer.answer, contains('Immediate checks'));
-    expect(answer.citations.single.id, 'cpu_100');
-    expect(answer.candidates, isNotEmpty);
+    expect(answer.mode, 'local');
+    expect(answer.answer, contains('API Retry Strategy'));
+    expect(answer.answer, contains('Key points'));
+    expect(answer.citations.first.id, 'engineering_api_retry');
   });
 
-  test('parses schema v2 runbook metadata and risk-grouped steps', () {
-    final bootstrap = ContentBootstrap.fromJson({
-      'manifest': {
-        'schemaVersion': 2,
-        'packageId': 'devqrh.test',
-        'name': 'Test runbooks',
-        'version': '20260608',
-        'runbookCount': 1,
-        'generatedAt': 1,
-        'team': 'platform',
-      },
-      'matchingConfig': {
-        'partialMinLength': 3,
-        'synonymGroups': [],
-        'weights': {},
-      },
-      'checklists': [
-        {
-          'id': 'redis_latency',
-          'title': 'Redis Latency',
-          'summary': 'Redis calls are slow and request latency is rising.',
-          'severity': 'p2',
-          'systems': ['redis', 'backend-service'],
-          'signals': ['redis p95 latency high'],
-          'owner': 'cache team',
-          'escalation': 'Escalate to cache team.',
-          'lastReviewedAt': '2026-06-08',
-          'safeSteps': [
-            {'step': 1, 'action': 'check redis latency', 'risk': 'safe'},
-          ],
-          'dangerSteps': [
-            {'step': 2, 'action': 'restart redis node', 'risk': 'danger'},
-          ],
-          'commands': [
-            {
-              'id': 'redis-cli',
-              'title': 'Latency command',
-              'command': 'redis-cli --latency',
-              'step': 1,
-              'risk': 'safe',
-            },
-          ],
-        },
-      ],
-    });
+  test('card generation returns a clear error when sidecar or model is unavailable', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repository = KnowledgeRepository(
+      FakeLocalStore(),
+      sidecarClient: UnavailableSidecarClient(),
+    );
+    await repository.importPackage(jsonEncode(sampleLearningBundleJson()));
 
-    final checklist = bootstrap.checklists.single;
+    final generated = await repository.generateCards(
+      materialIds: const ['engineering_api_retry'],
+      limit: 2,
+    );
 
-    expect(bootstrap.manifest.schemaVersion, 2);
-    expect(bootstrap.manifest.packageId, 'devqrh.test');
-    expect(bootstrap.manifest.checklistCount, 1);
-    expect(checklist.severity, 'p2');
-    expect(checklist.systems, contains('redis'));
-    expect(checklist.immediateActions.single.action, 'check redis latency');
-    expect(checklist.safeSteps.single.risk, StepRisk.safe);
-    expect(checklist.dangerSteps.single.risk, StepRisk.danger);
-    expect(checklist.commands.single.command, 'redis-cli --latency');
+    expect(generated.mode, 'error');
+    expect(generated.cards, isEmpty);
+    expect(generated.notice, contains('AI card generation is unavailable'));
   });
 
-  test(
-    'imported packages include validation warnings for weak metadata',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final repository = LookupRepository(FakeLocalStore());
+  test('review scheduler updates due date and lapse state from grades', () {
+    final scheduler = ReviewScheduler();
+    final now = DateTime(2026, 6, 27, 9);
+    final state = ReviewState.newCard('card_retry_idempotency', now: now);
 
-      final result = await repository.importPackage(
-        jsonEncode({
-          'manifest': {
-            'schemaVersion': 2,
-            'version': '20260608',
-            'checklistCount': 1,
-            'generatedAt': 1,
-          },
-          'matchingConfig': {
-            'partialMinLength': 3,
-            'synonymGroups': [],
-            'weights': {},
-          },
-          'checklists': [
-            {
-              'id': 'thin_runbook',
-              'title': 'Thin Runbook',
-              'keywords': ['thin'],
-              'symptoms': ['weak metadata'],
-              'immediateActions': [
-                {'step': 1, 'action': 'inspect signal'},
-              ],
-              'decisionTree': [],
-              'rootCause': [],
-              'longTermFix': [],
-            },
-          ],
-        }),
-      );
+    final good = scheduler.schedule(
+      state: state,
+      grade: ReviewGrade.good,
+      now: now,
+    );
+    expect(good.updatedState.intervalDays, 1);
+    expect(good.nextDueAt, now.add(const Duration(days: 1)));
+    expect(good.updatedState.repetitionCount, 1);
 
-      expect(result.bootstrap, isNotNull);
-      expect(result.validationReport.warnings, isNotEmpty);
+    final again = scheduler.schedule(
+      state: good.updatedState,
+      grade: ReviewGrade.again,
+      now: now,
+    );
+    expect(again.updatedState.intervalDays, 0);
+    expect(again.updatedState.repetitionCount, 0);
+    expect(again.updatedState.lapses, 1);
+    expect(again.nextDueAt, now.add(const Duration(minutes: 10)));
+  });
+
+  test('related material scoring prefers shared tags and concepts', () {
+    final bundle = LearningBundle.fromJson(sampleLearningBundleJson());
+    final retry = bundle.materials.first;
+    final mysql = bundle.materials.last;
+    final relatedRetry = StudyMaterial(
+      id: 'retry_budget',
+      title: 'Retry Budget Notes',
+      type: MaterialType.engineering,
+      tags: const ['engineering', 'api', 'retry'],
+      summary: 'Retry budgets and backoff protect downstream services.',
+      content: 'Clients need bounded retry policies with jitter.',
+    );
+
+    expect(
+      relatedMaterialScore(retry, relatedRetry),
+      greaterThan(relatedMaterialScore(retry, mysql)),
+    );
+  });
+}
+
+Map<String, dynamic> sampleLearningBundleJson() {
+  return {
+    'manifest': {
+      'schemaVersion': 1,
+      'packageId': 'test.learning',
+      'name': 'Test Learning Bundle',
+      'version': '20260627',
+      'generatedAt': 1782499200000,
+      'defaultLocale': 'zh-CN',
+      'sourceType': 'test',
     },
-  );
+    'matchingConfig': {
+      'partialMinLength': 2,
+      'synonymGroups': [
+        ['api', 'service', 'client'],
+        ['retry', 'backoff', 'idempotency'],
+        ['mysql', 'sql', 'index'],
+      ],
+      'weights': {
+        'exactQueryId': 1.0,
+        'exactIdToken': 1.0,
+        'exactTitleToken': 0.95,
+        'exactKeywordToken': 0.9,
+        'exactSymptomToken': 0.78,
+        'exactContextToken': 0.6,
+        'synonymKeyword': 0.72,
+        'synonymPrimary': 0.62,
+        'synonymAny': 0.5,
+        'partialKeyword': 0.48,
+        'partialPrimary': 0.4,
+        'partialAny': 0.28,
+        'tokenAverage': 0.88,
+        'keywordCoverage': 0.12,
+        'exactTitleBoost': 0.12,
+        'partialTitleBoost': 0.07,
+        'partialIdBoost': 0.07,
+        'phraseBoost': 0.04,
+      },
+    },
+    'materials': [
+      {
+        'id': 'engineering_api_retry',
+        'title': 'API Retry Strategy',
+        'type': 'engineering',
+        'tags': ['engineering', 'api', 'retry'],
+        'summary': 'Retries should be bounded, idempotent, observable, and paired with backoff.',
+        'content': 'Retry only idempotent requests or requests with an idempotency key. Use exponential backoff with jitter and stop retrying validation errors.',
+        'source': 'test/api_retry.md',
+        'chunks': [
+          'Retry only idempotent requests or requests with an idempotency key.',
+          'Use exponential backoff with jitter and a bounded retry budget.',
+          'Do not retry validation errors.',
+        ],
+      },
+      {
+        'id': 'engineering_mysql_index',
+        'title': 'MySQL Composite Index',
+        'type': 'engineering',
+        'tags': ['database', 'mysql', 'sql', 'index'],
+        'summary': 'Composite indexes follow the leftmost-prefix rule.',
+        'content': 'A query should match columns from left to right and avoid skipping the leading column.',
+        'source': 'test/mysql_index.md',
+        'chunks': ['Composite indexes follow the leftmost-prefix rule.'],
+      },
+    ],
+    'decks': [
+      {
+        'id': 'engineering',
+        'title': 'Engineering Docs',
+        'goal': 'Review practical engineering documentation.',
+        'tags': ['engineering'],
+        'cardIds': ['card_retry_idempotency'],
+      },
+    ],
+    'cards': [
+      {
+        'id': 'card_retry_idempotency',
+        'deckId': 'engineering',
+        'front': 'What must be true before retrying an API request?',
+        'back': 'The request must be idempotent or carry an idempotency key.',
+        'explanation': 'Unsafe retries can duplicate writes or amplify outages.',
+        'tags': ['api', 'retry'],
+        'difficulty': 2,
+        'sourceMaterialIds': ['engineering_api_retry'],
+      },
+    ],
+  };
+}
 
-  test('builds saved runbook subtitle with keyword and symptom fallback', () {
-    final keywordFirst = Checklist(
-      id: 'cpu_100',
-      title: 'CPU 100%',
-      keywords: const ['cpu', 'thread'],
-      symptoms: const ['high cpu'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const [],
-      longTermFix: const [],
-    );
-    final symptomFallback = Checklist(
-      id: 'io_wait',
-      title: 'IO Wait',
-      keywords: const [],
-      symptoms: const ['slow writes', 'queue spike'],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const [],
-      longTermFix: const [],
-    );
-    final idFallback = Checklist(
-      id: 'mystery_case',
-      title: 'Mystery',
-      keywords: const [],
-      symptoms: const [],
-      immediateActions: const [],
-      decisionTree: const [],
-      rootCause: const [],
-      longTermFix: const [],
-    );
+class UnavailableSidecarClient extends RagSidecarClient {
+  @override
+  Future<GeneratedCardsResponse?> generateCards({
+    required List<String> materialIds,
+    required LearningBundle bundle,
+    int limit = 6,
+  }) async {
+    return null;
+  }
 
-    expect(
-      buildSavedChecklistSubtitle(keywordFirst, preferSymptoms: false),
-      'cpu / thread',
-    );
-    expect(
-      buildSavedChecklistSubtitle(symptomFallback, preferSymptoms: false),
-      'slow writes / queue spike',
-    );
-    expect(
-      buildSavedChecklistSubtitle(idFallback, preferSymptoms: true),
-      'mystery_case',
-    );
-  });
-
-  test('builds collection summary text for list headers', () {
-    final summary = buildCollectionSummaryForTest(
-      count: 3,
-      totalCount: 12,
-      activityLabel: 'saved',
-      source: ContentSource.bundled,
-    );
-
-    expect(summary, contains('3 saved'));
-    expect(summary, contains('12 runbooks'));
-    expect(summary, contains('source bundled'));
-  });
-
-  test('builds settings overview summary text', () {
-    final summary = buildSettingsOverviewForTest(
-      manifest: ContentManifest(
-        version: '1234567890abcdef',
-        checklistCount: 8,
-        generatedAt: 1,
-      ),
-      state: ContentSyncState(
-        source: ContentSource.imported,
-        bootstrap: ContentBootstrap(
-          manifest: ContentManifest(
-            version: '1234567890abcdef',
-            checklistCount: 8,
-            generatedAt: 1,
-          ),
-          matchingConfig: MatchingConfig(
-            partialMinLength: 3,
-            synonymGroups: const [],
-            weights: MatchingWeights(
-              exactQueryId: 1.0,
-              exactIdToken: 1.0,
-              exactTitleToken: 0.95,
-              exactKeywordToken: 0.90,
-              exactSymptomToken: 0.78,
-              exactContextToken: 0.60,
-              synonymKeyword: 0.72,
-              synonymPrimary: 0.62,
-              synonymAny: 0.50,
-              partialKeyword: 0.48,
-              partialPrimary: 0.40,
-              partialAny: 0.28,
-              tokenAverage: 0.88,
-              keywordCoverage: 0.12,
-              exactTitleBoost: 0.12,
-              partialTitleBoost: 0.07,
-              partialIdBoost: 0.07,
-              phraseBoost: 0.04,
-            ),
-          ),
-          checklists: [],
-        ),
-      ),
-    );
-
-    expect(summary, contains('Version 12345678'));
-    expect(summary, contains('source imported'));
-    expect(summary, contains('ready'));
-  });
-
-  test('builds compact home sync summary text', () {
-    final summary = buildHomeSyncSummaryForTest(
-      source: ContentSource.imported,
-      manifest: ContentManifest(
-        version: '1234567890abcdef',
-        checklistCount: 4,
-        generatedAt: 1,
-      ),
-      lastSyncedAt: DateTime(2026, 4, 13, 12, 0),
-    );
-
-    expect(summary, contains('Version 12345678'));
-    expect(summary, contains('from imported package'));
-    expect(summary, contains('updated 2026-04-13 12:00'));
-  });
+  @override
+  void dispose() {}
 }
 
 class FakeLocalStore extends LocalStore {}

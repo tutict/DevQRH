@@ -1,14 +1,13 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../shell/app_shell.dart';
-import '../../features/lookup/presentation/agent_screen.dart';
-import '../../features/lookup/presentation/catalog_screen.dart';
-import '../../features/lookup/presentation/checklist_detail_screen.dart';
-import '../../features/lookup/presentation/favorites_screen.dart';
-import '../../features/lookup/presentation/home_screen.dart';
-import '../../features/lookup/presentation/recent_screen.dart';
-import '../../features/lookup/presentation/settings_screen.dart';
+import '../../features/knowledge/presentation/cards_screen.dart';
+import '../../features/knowledge/presentation/home_screen.dart';
+import '../../features/knowledge/presentation/library_screen.dart';
+import '../../features/knowledge/presentation/material_detail_screen.dart';
+import '../../features/knowledge/presentation/settings_screen.dart';
+import '../../features/knowledge/presentation/tutor_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -22,31 +21,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/',
-                builder: (context, state) => const HomeScreen(),
+                builder: (context, state) => const KnowledgeHomeScreen(),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/agent',
-                builder: (context, state) => const AgentScreen(),
+                path: '/library',
+                builder: (context, state) => const LibraryScreen(),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/favorites',
-                builder: (context, state) => const FavoritesScreen(),
+                path: '/ask',
+                builder: (context, state) => const TutorScreen(),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/recent',
-                builder: (context, state) => const RecentScreen(),
+                path: '/cards',
+                builder: (context, state) => const CardsScreen(),
               ),
             ],
           ),
@@ -54,26 +53,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/settings',
-                builder: (context, state) => const SettingsScreen(),
+                builder: (context, state) => const KnowledgeSettingsScreen(),
               ),
             ],
           ),
         ],
       ),
       GoRoute(
-        path: '/checklists/:id',
+        path: '/materials/:id',
         builder: (context, state) {
-          final checklistId = state.pathParameters['id'] ?? '';
-          final title = state.uri.queryParameters['title'] ?? '';
-          return ChecklistDetailScreen(
-            checklistId: checklistId,
-            titleHint: title,
+          return MaterialDetailScreen(
+            materialId: state.pathParameters['id'] ?? '',
           );
         },
-      ),
-      GoRoute(
-        path: '/catalog',
-        builder: (context, state) => const CatalogScreen(),
       ),
     ],
   );

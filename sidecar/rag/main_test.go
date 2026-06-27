@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBuildRAGAnswerUsesRetrievedRunbook(t *testing.T) {
@@ -274,4 +275,128 @@ func postRaw[T any](t *testing.T, method string, url string, body []byte, expect
 		t.Fatalf("decode response: %v", err)
 	}
 	return decoded
+}
+
+func TestLearningBundleSyncLookupAnswerAndReview(t *testing.T) {
+	app := newServer()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/content/sync", app.contentSync)
+	mux.HandleFunc("/lookup", app.lookup)
+	mux.HandleFunc("/rag/answer", app.ragAnswer)
+	mux.HandleFunc("/review/schedule", app.reviewSchedule)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	syncResponse := postJSON[contentSyncResponse](t, server.URL+"/content/sync", contentSyncRequest{
+		Bundle: sampleLearningBundlePtr(),
+	}, http.StatusOK)
+	if syncResponse.ContentVersion == "" {
+		t.Fatal("expected learning content version")
+	}
+	if syncResponse.MaterialCount != 2 || syncResponse.CardCount != 1 {
+		t.Fatalf("unexpected learning counts: %+v", syncResponse)
+	}
+
+	lookup := postJSON[KnowledgeSearchResponse](t, server.URL+"/lookup", lookupRequest{
+		Query:          "api retry idempotency",
+		ContentVersion: syncResponse.ContentVersion,
+	}, http.StatusOK)
+	if lookup.BestMatch == nil || lookup.BestMatch.ID != "api_retry" {
+		t.Fatalf("unexpected learning lookup: %+v", lookup)
+	}
+
+	answer := postJSON[learningAnswerResponse](t, server.URL+"/rag/answer", lookupRequest{
+		Query:          "api retry idempotency",
+		ContentVersion: syncResponse.ContentVersion,
+	}, http.StatusOK)
+	if len(answer.Citations) == 0 || !strings.Contains(answer.Answer, "API Retry") {
+		t.Fatalf("expected grounded learning answer, got %+v", answer)
+	}
+
+	review := postJSON[ReviewResult](t, server.URL+"/review/schedule", reviewScheduleRequest{
+		Grade: "good",
+		Now:   time.Date(2026, 6, 27, 12, 0, 0, 0, time.UTC).UnixMilli(),
+		State: ReviewState{CardID: "card_retry", EaseFactor: 2.5},
+	}, http.StatusOK)
+	if review.UpdatedState.IntervalDays != 1 || review.NextDueAt <= 0 {
+		t.Fatalf("unexpected review result: %+v", review)
+	}
+}
+
+func TestLearningCardsGenerateRequiresConfiguredLLM(t *testing.T) {
+	t.Setenv("DEVQRH_LLM_API_KEY", "")
+	app := newServer()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/content/sync", app.contentSync)
+	mux.HandleFunc("/cards/generate", app.cardsGenerate)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	syncResponse := postJSON[contentSyncResponse](t, server.URL+"/content/sync", contentSyncRequest{
+		Bundle: sampleLearningBundlePtr(),
+	}, http.StatusOK)
+
+	postJSON[errorPayload](t, server.URL+"/cards/generate", cardsGenerateRequest{
+		ContentVersion: syncResponse.ContentVersion,
+		MaterialIDs:    []string{"api_retry"},
+		Limit:          2,
+	}, http.StatusServiceUnavailable)
+}
+
+func sampleLearningBundlePtr() *LearningBundle {
+	bundle := sampleLearningBundle()
+	return &bundle
+}
+
+func sampleLearningBundle() LearningBundle {
+	return LearningBundle{
+		Manifest: LearningManifest{
+			SchemaVersion: 1,
+			PackageID:     "test.learning",
+			Name:          "Test Learning",
+			Version:       "test-learning",
+			GeneratedAt:   1,
+			DefaultLocale: "en-US",
+			SourceType:    "test",
+		},
+		MatchingConfig: MatchingConfig{
+			PartialMinLength: 2,
+			SynonymGroups: [][]string{
+				{"api", "service"},
+				{"retry", "idempotency"},
+			},
+			Weights: defaultWeights(),
+		},
+		Materials: []StudyMaterial{
+			{
+				ID:      "api_retry",
+				Title:   "API Retry Strategy",
+				Type:    "engineering",
+				Tags:    []string{"api", "retry", "idempotency"},
+				Summary: "Retries should be bounded and idempotent.",
+				Content: "Retry only idempotent operations or requests with an idempotency key. Use backoff with jitter.",
+				Chunks:  []string{"Retry only idempotent operations.", "Use backoff with jitter."},
+			},
+			{
+				ID:      "english_context",
+				Title:   "Infer Vocabulary From Context",
+				Type:    "exam",
+				Tags:    []string{"english", "vocabulary"},
+				Summary: "Use contrast and examples to infer word meaning.",
+				Content: "Contrast markers and examples help infer unknown words.",
+			},
+		},
+		Decks: []StudyDeck{
+			{ID: "engineering", Title: "Engineering", CardIDs: []string{"card_retry"}},
+		},
+		Cards: []StudyCard{
+			{
+				ID:                "card_retry",
+				DeckID:            "engineering",
+				Front:             "When is retry safe?",
+				Back:              "When the operation is idempotent or has an idempotency key.",
+				SourceMaterialIDs: []string{"api_retry"},
+			},
+		},
+	}
 }

@@ -1,39 +1,32 @@
-# DevQRH RAG Sidecar
+# 应手 RAG Sidecar
 
-Local loopback service used by the Flutter desktop app.
+Local loopback service used by the Flutter desktop app for offline-first study material retrieval, grounded learning Q&A, card generation assistance, and review scheduling.
 
-The current implementation provides retrieval endpoints with the same response
-shape as the Flutter offline matcher:
+Primary learning endpoints:
 
 - `GET /health`
 - `GET /metrics`
 - `POST /content/sync`
 - `POST /lookup`
-- `POST /agent/navigate`
 - `POST /rag/answer`
+- `POST /cards/generate`
+- `POST /review/schedule`
 
-Call `/content/sync` with the active handbook package first. It validates the
-package, builds an in-memory retrieval index, and returns a `contentVersion`.
-Subsequent `/lookup`, `/agent/navigate`, and `/rag/answer` calls should send
-only `query` plus `contentVersion`.
+Call `/content/sync` with the active learning package first:
 
-Schema v2 packages can include on-call metadata such as `severity`, `systems`,
-`signals`, `owner`, `escalation`, `lastReviewedAt`, risk-grouped steps, and
-copyable `commands`. `/content/sync` returns a `validation` report. Validation
-errors block indexing with HTTP 400; warnings allow indexing and identify
-content quality issues such as missing owners, stale reviews, or unlinked
-commands.
+```json
+{ "bundle": { "manifest": {}, "matchingConfig": {}, "materials": [], "decks": [], "cards": [] } }
+```
 
-The query endpoints still accept the older `{ query, bootstrap }` shape as a
-compatibility fallback, but that path is slower because it has to decode and
-index the package for that request.
+The sidecar validates the `LearningBundle`, builds an in-memory retrieval index over `materials`, and returns a `contentVersion`. Subsequent `/lookup`, `/rag/answer`, and `/cards/generate` calls should send `contentVersion`; they may also send an inline `bundle` for one-shot fallback.
 
-`/rag/answer` performs local retrieval over the synced handbook package and
-returns a grounded answer plus citations. This endpoint is deterministic and
-does not require a cloud LLM key.
+`/lookup` returns ranked study materials with the same JSON shape as the Flutter offline matcher. `/rag/answer` returns a deterministic local answer with citations; it does not require a model key and must stay grounded in retrieved material.
 
-Set the following environment variables to enable an OpenAI-compatible chat
-completion provider:
+`/cards/generate` is intentionally gated on model configuration. If `DEVQRH_LLM_API_KEY` is missing, it returns HTTP 503 with a clear error so Flutter can disable AI card generation without affecting search or review. The current build emits deterministic card candidates behind that gate; provider-backed generation can be added without changing the Flutter contract.
+
+`/review/schedule` accepts a `ReviewState`, one of `again`, `hard`, `good`, or `easy`, and returns the updated spaced-repetition state.
+
+OpenAI-compatible provider settings:
 
 ```powershell
 $env:DEVQRH_LLM_API_KEY="..."
@@ -41,19 +34,10 @@ $env:DEVQRH_LLM_MODEL="..."
 $env:DEVQRH_LLM_BASE_URL="https://api.openai.com/v1" # optional
 $env:DEVQRH_LLM_TEMPERATURE="0.2" # optional
 $env:DEVQRH_LLM_TIMEOUT_SECONDS="20" # optional
+$env:DEVQRH_LLM_MAX_CONCURRENCY="2" # optional
 ```
 
-If the provider call fails, the endpoint returns the deterministic local answer
-with `mode: "local_fallback"`.
-
-Optional LLM protection:
-
-```powershell
-$env:DEVQRH_LLM_MAX_CONCURRENCY="2"
-```
-
-The sidecar also applies an internal circuit breaker after repeated provider
-failures and falls back to the local answer while the circuit is open.
+The older runbook `{ bootstrap }` sync and `/agent/navigate` path remain for compatibility while the Flutter client moves to `features/knowledge` and `LearningBundle`.
 
 Run locally:
 
@@ -67,8 +51,7 @@ The process prints a JSON readiness line to stdout:
 {"event":"ready","port":12345}
 ```
 
-Flutter starts this executable on desktop when it is present next to the app
-binary, then falls back to the in-app matcher if the sidecar is missing.
+Flutter starts this executable on desktop when it is present next to the app binary, then falls back to the in-app matcher if the sidecar is missing.
 
 Run a local k6 smoke/stress test after starting the sidecar on a fixed port:
 
