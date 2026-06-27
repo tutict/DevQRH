@@ -1,5 +1,79 @@
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors and local workspace settings
 .idea/
 *.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Local agent/tooling state
+.claude/settings.local.json
+.codex/
+.agents/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+# Logs and transient files
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Flutter / Dart / Pub
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
 mobile/build/
+mobile/coverage/
+mobile/doc/api/
+
+# Native mobile / desktop generated files
+mobile/**/Flutter/ephemeral/
+mobile/**/Pods/
+mobile/**/DerivedData/
+mobile/**/xcuserdata/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/android/**/*.keystore
+mobile/android/**/*.jks
+mobile/windows/flutter/ephemeral/
+mobile/linux/flutter/ephemeral/
+
+# Go sidecar build and test artifacts
 sidecar/rag/rag_sidecar
 sidecar/rag/rag_sidecar.exe
+sidecar/rag/*.test
+sidecar/rag/coverage.out
+sidecar/rag/coverage.html
+sidecar/rag/*.prof
+
+# Local runtime/build outputs
+mobile/build/sidecar/
+dist/
+out/
+tmp/
+temp/
+
+# Load test outputs
+loadtest/results/
+loadtest/reports/
+loadtest/artifacts/
+loadtest/*.summary.json
